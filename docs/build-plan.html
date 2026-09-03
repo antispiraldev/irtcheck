@@ -340,7 +340,8 @@
   <div class="eyebrow">Build plan &middot; irtcheck v1</div>
   <h1>Which items in your eval suite are actually measuring anything</h1>
   <p class="standfirst">A 2PL item-response model over a response matrix you already have, split into
-  nine agent briefs across four waves. Three findings below change the spec before any of it starts.</p>
+  nine agent briefs across four waves. Three spike findings changed the spec before a line was written;
+  all three decisions are made and wave&nbsp;0 has shipped.</p>
 
   <div class="plotband">
     <figure class="plot">
@@ -372,7 +373,7 @@
   <div class="fact"><dt>Waves</dt><dd>4<small>0 blocks; 1&ndash;3 fan out</small></dd></div>
   <div class="fact"><dt>Agent briefs</dt><dd>9<small>peak parallelism: 4</small></dd></div>
   <div class="fact"><dt>Shared files after wave&nbsp;0</dt><dd>0<small>by construction, not convention</small></dd></div>
-  <div class="fact"><dt>Decisions for you</dt><dd>3<small>one changes the stack</small></dd></div>
+  <div class="fact"><dt>Wave 0</dt><dd>shipped<small>88 tests, 59 guard tests, CI green</small></dd></div>
 </dl>
 
 <!-- ============================================================ -->
@@ -437,39 +438,45 @@
 
 <!-- ============================================================ -->
 <section>
-  <h2><span class="num">02</span>Three decisions before anyone starts</h2>
-  <p class="deck">Everything else in this plan I will just do. These three change what gets built, so
-  they are yours.</p>
+  <h2><span class="num">02</span>Three decisions, now made</h2>
+  <p class="deck">Signed off 2026-09-03. Recorded here because each is something a wave-1 agent would
+  otherwise have to re-derive, or get wrong.</p>
 
   <div class="signoff">
     <div class="row">
-      <div class="qid">D&middot;1 &mdash; stack</div>
-      <p class="q">Own the Pyro model instead of depending on <code>py-irt</code>?</p>
-      <p>This is F&middot;1. Saying no means pinning the whole tool to Python 3.11 and shipping something
-      that mis-installs on 3.12+ with no error. Saying yes means ~150 more lines in one module and a
-      cross-check job that proves our estimates match py-irt's on a 3.11 runner.</p>
-      <span class="rec"><b>Recommend</b> yes &mdash; and keep py-irt in the cross-check, so the README can
-      still say the estimates were validated against it.</span>
+      <div class="qid">D&middot;1 &mdash; stack &middot; decided</div>
+      <p class="q">The Pyro model is ours. <code>py-irt</code> is not a dependency.</p>
+      <p>Written directly against Pyro, so the supported range is Python 3.11&ndash;3.13 rather than
+      3.11 alone, and <code>typer</code>/<code>rich</code> are not pinned by someone else's ceiling.
+      py-irt survives as a wave-2 cross-check on a throwaway 3.11 venv, beside R's <code>mirt</code>
+      &mdash; so the README can still say the estimates were validated against it.</p>
+      <span class="rec"><b>Consequence</b> CI runs a 3.11 / 3.12 / 3.13 matrix, and that matrix is what
+      stops this quietly regressing.</span>
     </div>
     <div class="row">
-      <div class="qid">D&middot;2 &mdash; validation method</div>
-      <p class="q">How is the held-out model scored on the anchor set?</p>
-      <p>The spec says "score the held-out model on the anchor set only", which admits two readings:
-      plain accuracy over the anchor items, or a &theta; re-estimated from those items with the item
-      parameters held fixed. They rank differently when the anchor set is difficulty-skewed.</p>
-      <span class="rec"><b>Recommend</b> compute both, headline the plain accuracy &mdash; it is what a
-      user actually does with the anchor set, so it is the number that has to hold up.</span>
+      <div class="qid">D&middot;2 &mdash; validation &middot; decided</div>
+      <p class="q">Score the held-out model both ways; headline plain accuracy.</p>
+      <p>Plain accuracy over the anchor items is what a user actually does once they have the set, so it
+      is the number that has to hold up. &theta; re-estimated with item parameters held fixed is reported
+      alongside it, because the two diverge when an anchor set skews hard or easy, and that divergence is
+      itself worth seeing.</p>
+      <span class="rec"><b>Owner</b> agent B, <code>wave1/select-validate</code>.</span>
     </div>
     <div class="row">
-      <div class="qid">D&middot;3 &mdash; repo</div>
-      <p class="q">Default branch <code>main</code> or <code>master</code>?</p>
-      <p>AudioBookLib uses <code>master</code>; the fresh repo here has an unborn <code>master</code>.
-      The ported git guard protects both names either way, so this is only about consistency across your
-      projects. Repo does not exist on GitHub yet &mdash; wave 0 creates it.</p>
-      <span class="rec"><b>Recommend</b> <code>main</code> for a new repo; say the word and it is
-      <code>master</code>.</span>
+      <div class="qid">D&middot;3 &mdash; repo &middot; decided</div>
+      <p class="q">Default branch <code>master</code>; repo private.</p>
+      <p><a href="https://github.com/antispiraldev/irtcheck">github.com/antispiraldev/irtcheck</a>,
+      matching AudioBookLib. The guard protects <code>master</code> and <code>main</code> either way.</p>
     </div>
   </div>
+
+  <h3>One schema change fell out of D&middot;2</h3>
+  <p>The spec writes the command as <code>irtcheck validate suite.irt</code> &mdash; one argument. But
+  leave-one-model-out <em>refits</em> k times, so it needs the raw response matrix, not the posteriors.
+  Rather than make the headline command depend on the user still having the original JSONL unchanged
+  beside the artifact, <strong>the artifact carries its own responses</strong>: three small integers per
+  response, and gzip flattens them. <code>--no-embed-responses</code> opts out, and <code>validate</code>
+  then says exactly what is missing rather than failing obscurely.</p>
 </section>
 
 <!-- ============================================================ -->
@@ -486,7 +493,7 @@
       </div>
 
       <div class="lane"><div class="who"><b>W0</b>foundation</div>
-        <div class="bar solo">contracts, CI, guard, synth</div><div></div><div></div><div></div></div>
+        <div class="bar solo">&check;&ensp;contracts, CI, guard, synth</div><div></div><div></div><div></div></div>
 
       <div class="lane"><div class="laneband"></div></div>
 
@@ -758,7 +765,11 @@
   },
 
   "diagnostics": {"elbo_final": ..., "elbo_history": [...], "epochs": ..., "seed": ...},
-  "passthrough": {"subject": {...}, "split": {...}}
+  "passthrough": {"subject": {...}, "split": {...}},
+
+  // The matrix the fit came from, so `validate` refits with one argument.
+  // Sparse triplets; omitted entirely under --no-embed-responses.
+  "responses": {"rows": [...], "cols": [...], "obs": [...]}
 }</pre>
   <p>Two flags that are easy to conflate and must not be: <span class="pill dead">dead</span> means the
   item confidently does not discriminate &mdash; the upper end of its <code>a</code> interval is below
@@ -786,7 +797,7 @@
           <td><code>git_guard.py</code> as a <code>PreToolUse</code> hook</td>
           <td>Mutating git in the shared checkout; force-push; push to a protected branch. Read-only git
           is untouched, and a human's own terminal never sees it.</td>
-          <td class="mono">port as-is; rename<br>AEDO_ &rarr; IRTCHECK_</td>
+          <td class="mono">ported; renamed<br>AEDO_ &rarr; IRTCHECK_,<br>plus one carve-out</td>
         </tr>
         <tr>
           <td>Same hook on <code>gh pr merge</code></td>
@@ -819,6 +830,16 @@
       </tbody>
     </table>
   </div>
+
+  <h3>The carve-out the guard needed</h3>
+  <p>The guard denied wave 0's own first commit, and by its own rules it was right to &mdash; which is how
+  it surfaced a real gap rather than an inconvenience. Adding a linked worktree refuses to run against an
+  unborn HEAD, so the remedy rule 1 points at (&ldquo;work in <code>.claude/worktrees/&lt;name&gt;</code>&rdquo;)
+  does not exist yet, and a repo with no history has nothing for another agent to be racing over.
+  <code>has_commits()</code> permits the bootstrap commit and nothing else &mdash; it can be true at most
+  once in a repository's life. The guard's own tests assert that the very next commit in that same tree is
+  denied again, and that pushing to <code>master</code> is denied even during the bootstrap. 59 tests now,
+  up from the 55 inherited.</p>
 
   <h3>What the <code>contracts</code> job actually asserts</h3>
   <ul class="tight">

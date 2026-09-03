@@ -106,8 +106,23 @@ jobs:
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch
           pip install -e '.[dev]'
+      # Until wave1/fit lands there are no `slow` tests, and pytest exits 5 on
+      # "no tests collected" — which would leave master red for the whole of
+      # wave 1 and teach everyone to ignore a red X. Exit 5 is tolerated and
+      # nothing else is; the moment the first fitting test exists this job
+      # starts reporting on it normally, with no further change here.
       - name: Fitting tests
-        run: python -m pytest -q -m slow
+        run: |
+          # `|| status=$?` rather than a bare call: Actions runs this with
+          # `bash -e`, so an unguarded non-zero exit would abort the step before
+          # the check below ever ran.
+          status=0
+          python -m pytest -q -m slow || status=$?
+          if [ "$status" -eq 5 ]; then
+            echo "::notice::No tests marked 'slow' yet — the fitter belongs to the wave1/fit brief."
+            exit 0
+          fi
+          exit "$status"
 
   # The guard is what keeps four concurrent agents out of each other's trees, so
   # a broken guard is a repo-wide hazard rather than a local inconvenience. Its
