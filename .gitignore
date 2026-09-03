@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Agent worktrees. One per brief; see CLAUDE.md → Agents work in worktrees.
+.claude/worktrees/
+.claude/settings.local.json
+
+# Fit artifacts and reports produced by running the tool.
+*.irt
+/scratch/

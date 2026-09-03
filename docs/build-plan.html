@@ -1,0 +1,864 @@
+<title>irtcheck Build Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper:      #F3F6F7;
+    --surface:    #FFFFFF;
+    --surface-2:  #EAEFF1;
+    --ink:        #131A20;
+    --ink-soft:   #3D4C55;
+    --muted:      #67797F;
+    --rule:       #D6DEE1;
+    --rule-firm:  #B9C6CB;
+    --accent:     #10627C;
+    --accent-dim: #DCEBF0;
+    --warn:       #9E6913;
+    --warn-dim:   #F5EBD8;
+    --stop:       #93373A;
+    --stop-dim:   #F6E4E3;
+    --shadow:     0 1px 2px rgba(19,26,32,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0D1418;
+      --surface:    #141D22;
+      --surface-2:  #1B262C;
+      --ink:        #DCE7EB;
+      --ink-soft:   #AEC0C7;
+      --muted:      #849AA2;
+      --rule:       #23323A;
+      --rule-firm:  #354952;
+      --accent:     #5DB4CE;
+      --accent-dim: #12303B;
+      --warn:       #D6A458;
+      --warn-dim:   #33280F;
+      --stop:       #DE8C8C;
+      --stop-dim:   #38201F;
+      --shadow:     0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #0D1418;
+    --surface:    #141D22;
+    --surface-2:  #1B262C;
+    --ink:        #DCE7EB;
+    --ink-soft:   #AEC0C7;
+    --muted:      #849AA2;
+    --rule:       #23323A;
+    --rule-firm:  #354952;
+    --accent:     #5DB4CE;
+    --accent-dim: #12303B;
+    --warn:       #D6A458;
+    --warn-dim:   #33280F;
+    --stop:       #DE8C8C;
+    --stop-dim:   #38201F;
+    --shadow:     0 1px 2px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 28px 96px; }
+  .col  { max-width: 68ch; }
+
+  /* ---- masthead ---------------------------------------------------- */
+
+  header.mast {
+    border-bottom: 1px solid var(--rule-firm);
+    margin-bottom: 44px;
+    padding: 44px 0 0;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-family: Spectral, Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(2.1rem, 4.6vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -.015em;
+    margin: 14px 0 0;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-family: Spectral, Georgia, serif;
+    font-size: clamp(1.05rem, 1.8vw, 1.24rem);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 16px 0 0;
+  }
+
+  .plotband {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 30px;
+    margin: 34px 0 0;
+    padding: 22px 0 26px;
+    border-top: 1px solid var(--rule);
+  }
+  @media (max-width: 720px) { .plotband { grid-template-columns: 1fr; } }
+  .plot svg { display: block; width: 100%; height: auto; }
+  .plot figcaption {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: .05em;
+    color: var(--muted);
+    margin-top: 9px;
+  }
+  .plot figcaption b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ---- facts strip -------------------------------------------------- */
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--rule-firm);
+    border-bottom: 1px solid var(--rule-firm);
+    margin-bottom: 52px;
+  }
+  @media (max-width: 720px) { .facts { grid-template-columns: repeat(2, 1fr); } }
+  .fact { padding: 16px 20px 18px; border-left: 1px solid var(--rule); }
+  .fact:first-child { border-left: 0; padding-left: 0; }
+  .fact dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 5px;
+  }
+  .fact dd {
+    margin: 0; font-family: Spectral, Georgia, serif;
+    font-size: 1.5rem; font-weight: 500; line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .fact dd small { display: block; font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12.5px; font-weight: 400; color: var(--muted); line-height: 1.4; margin-top: 3px; }
+
+  /* ---- section typography ------------------------------------------ */
+
+  section { margin-bottom: 60px; }
+  h2 {
+    font-family: Spectral, Georgia, serif;
+    font-weight: 600; font-size: 1.72rem; line-height: 1.2;
+    letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance;
+  }
+  h2 .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .62em; font-weight: 400; color: var(--accent);
+    letter-spacing: .06em; margin-right: .7em;
+  }
+  .deck { color: var(--muted); max-width: 66ch; margin: 0 0 26px; font-size: 14.5px; }
+  h3 {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 1.02rem; font-weight: 600; margin: 30px 0 8px; letter-spacing: -.005em;
+  }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .875em;
+  }
+  p code, li code, td code, dd code {
+    background: var(--surface-2); padding: .08em .34em; border-radius: 2px;
+  }
+
+  ul.tight { margin: 0 0 14px; padding-left: 1.15rem; }
+  ul.tight li { margin-bottom: 6px; }
+
+  /* ---- findings ------------------------------------------------------ */
+
+  .finding {
+    display: grid;
+    grid-template-columns: 3.4rem minmax(0, 1fr);
+    gap: 0 18px;
+    padding: 22px 0;
+    border-top: 1px solid var(--rule);
+  }
+  @media (max-width: 640px) { .finding { grid-template-columns: 1fr; gap: 6px; } }
+  .finding .tag {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: .1em; color: var(--muted);
+    padding-top: .35em;
+  }
+  .finding h3 { margin: 0 0 8px; font-size: 1.06rem; }
+  .finding .body { max-width: 66ch; }
+  .finding .body > :last-child { margin-bottom: 0; }
+  .verdict {
+    display: inline-block; margin-top: 12px; padding: 7px 12px;
+    border-left: 2px solid var(--accent); background: var(--accent-dim);
+    font-size: 14px; line-height: 1.5;
+  }
+  .verdict.warn { border-left-color: var(--warn); background: var(--warn-dim); }
+
+  /* ---- sign-off block ------------------------------------------------ */
+
+  .signoff {
+    border: 1px solid var(--rule-firm);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .signoff > .row { padding: 20px 24px; border-top: 1px solid var(--rule); }
+  .signoff > .row:first-child { border-top: 0; }
+  .signoff .q {
+    font-family: Spectral, Georgia, serif; font-size: 1.14rem; font-weight: 500;
+    margin: 0 0 4px;
+  }
+  .signoff .qid {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: .1em; color: var(--muted);
+  }
+  .signoff p { font-size: 14.3px; margin: 8px 0 0; max-width: 68ch; }
+  .rec {
+    display: inline-flex; align-items: baseline; gap: .5em;
+    margin-top: 10px; font-size: 14px;
+  }
+  .rec b { font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    letter-spacing: .1em; color: var(--accent); }
+
+  /* ---- swimlane ------------------------------------------------------ */
+
+  .laneswrap { overflow-x: auto; padding-bottom: 4px; }
+  .lanes { min-width: 700px; }
+  .lanehead, .lane {
+    display: grid;
+    grid-template-columns: 12.5rem repeat(4, minmax(0, 1fr));
+    gap: 0 8px;
+    align-items: center;
+  }
+  .lanehead { border-bottom: 1px solid var(--rule-firm); padding-bottom: 7px; margin-bottom: 4px; }
+  .lanehead span {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .11em; text-transform: uppercase; color: var(--muted);
+  }
+  .lane { padding: 3px 0; }
+  .lane .who {
+    font-size: 13.2px; padding-right: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lane .who b { font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+    font-weight: 500; color: var(--accent); margin-right: .55em; }
+  .bar {
+    height: 26px; border-radius: 2px; display: flex; align-items: center;
+    padding: 0 10px; font-size: 12px; color: var(--surface);
+    background: var(--accent); white-space: nowrap; overflow: hidden;
+  }
+  .bar.solo   { background: var(--ink); }
+  .bar.opt    { background: transparent; color: var(--muted);
+                border: 1px dashed var(--rule-firm); }
+  .bar.wire   { background: var(--warn); }
+  .lanegap { height: 10px; }
+  .laneband {
+    grid-column: 2 / -1; height: 1px; background: var(--rule);
+    margin: 8px 0;
+  }
+
+  /* ---- agent cards --------------------------------------------------- */
+
+  .agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  @media (max-width: 820px) { .agents { grid-template-columns: 1fr; } }
+  .agent {
+    border: 1px solid var(--rule); background: var(--surface);
+    padding: 20px 22px 22px; display: flex; flex-direction: column; gap: 0;
+  }
+  .agent.lead { border-color: var(--rule-firm); border-top: 3px solid var(--accent); }
+  .agent .slug {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; color: var(--accent); letter-spacing: .04em;
+  }
+  .agent h3 { margin: 6px 0 10px; font-size: 1.08rem; }
+  .agent p { font-size: 14.2px; margin: 0 0 12px; }
+  .agent dl { margin: 0; display: grid; grid-template-columns: 5.1rem minmax(0,1fr); gap: 5px 12px; }
+  .agent dt {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+    padding-top: .25em;
+  }
+  .agent dd { margin: 0; font-size: 13.3px; line-height: 1.5; }
+  .agent dd.files {
+    font-family: "IBM Plex Mono", monospace; font-size: 11.8px;
+    color: var(--ink-soft); word-break: break-word; line-height: 1.65;
+  }
+  .agent .trap {
+    margin-top: 14px; padding: 10px 12px; background: var(--stop-dim);
+    border-left: 2px solid var(--stop); font-size: 13.2px; line-height: 1.5;
+  }
+  .agent .trap b { color: var(--stop); }
+
+  /* ---- tables --------------------------------------------------------- */
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13.6px; }
+  th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    font-weight: 500; background: var(--surface-2);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.mono { font-family: "IBM Plex Mono", monospace; font-size: 12.4px; }
+
+  pre {
+    background: var(--surface-2); border: 1px solid var(--rule);
+    padding: 16px 18px; overflow-x: auto; font-size: 12.6px; line-height: 1.65;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; margin: 0 0 16px;
+  }
+
+  .pill {
+    display: inline-block; padding: 1px 7px; border-radius: 2px;
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    letter-spacing: .07em; text-transform: uppercase;
+  }
+  .pill.sig  { background: var(--accent-dim); color: var(--accent); }
+  .pill.dead { background: var(--warn-dim);   color: var(--warn); }
+  .pill.stop { background: var(--stop-dim);   color: var(--stop); }
+
+  footer {
+    border-top: 1px solid var(--rule-firm); padding-top: 18px;
+    font-size: 13px; color: var(--muted); max-width: 68ch;
+  }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Build plan &middot; irtcheck v1</div>
+  <h1>Which items in your eval suite are actually measuring anything</h1>
+  <p class="standfirst">A 2PL item-response model over a response matrix you already have, split into
+  nine agent briefs across four waves. Three findings below change the spec before any of it starts.</p>
+
+  <div class="plotband">
+    <figure class="plot">
+      <svg viewBox="0 0 320 98" role="img" aria-label="Item characteristic curves for three items with different discriminations">
+        <line x1="0" y1="86" x2="320" y2="86" stroke="var(--rule-firm)" stroke-width="1"/>
+        <path d="M0.0,86.0 L16.0,86.0 L32.0,86.0 L48.0,86.0 L64.0,86.0 L80.0,86.0 L96.0,85.9 L112.0,85.7 L128.0,85.1 L144.0,83.4 L160.0,79.1 L176.0,69.3 L192.0,52.0 L208.0,32.5 L224.0,18.9 L240.0,12.2 L256.0,9.5 L272.0,8.6 L288.0,8.2 L304.0,8.1 L320.0,8.0" fill="none" stroke="var(--accent)" stroke-width="2"/>
+        <path d="M0.0,83.8 L16.0,82.6 L32.0,80.8 L48.0,78.2 L64.0,74.6 L80.0,69.6 L96.0,63.1 L112.0,55.4 L128.0,47.0 L144.0,38.6 L160.0,30.9 L176.0,24.4 L192.0,19.4 L208.0,15.8 L224.0,13.2 L240.0,11.4 L256.0,10.2 L272.0,9.5 L288.0,8.9 L304.0,8.6 L320.0,8.4"   fill="none" stroke="var(--accent)" stroke-width="1.4" opacity=".55"/>
+        <path d="M0.0,70.6 L16.0,68.8 L32.0,66.8 L48.0,64.7 L64.0,62.5 L80.0,60.1 L96.0,57.6 L112.0,55.1 L128.0,52.4 L144.0,49.7 L160.0,47.0 L176.0,44.3 L192.0,41.6 L208.0,38.9 L224.0,36.4 L240.0,33.9 L256.0,31.5 L272.0,29.3 L288.0,27.2 L304.0,25.2 L320.0,23.4"  fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="3 3"/>
+        <g stroke="var(--muted)" stroke-width="1" opacity=".8"><line x1="84.0" y1="86.0" x2="84.0" y2="91.0" /><line x1="104.0" y1="86.0" x2="104.0" y2="91.0" /><line x1="116.0" y1="86.0" x2="116.0" y2="91.0" /><line x1="132.0" y1="86.0" x2="132.0" y2="91.0" /><line x1="138.0" y1="86.0" x2="138.0" y2="91.0" /><line x1="148.0" y1="86.0" x2="148.0" y2="91.0" /><line x1="156.0" y1="86.0" x2="156.0" y2="91.0" /><line x1="166.0" y1="86.0" x2="166.0" y2="91.0" /><line x1="176.0" y1="86.0" x2="176.0" y2="91.0" /><line x1="182.0" y1="86.0" x2="182.0" y2="91.0" /><line x1="196.0" y1="86.0" x2="196.0" y2="91.0" /><line x1="212.0" y1="86.0" x2="212.0" y2="91.0" /></g>
+      </svg>
+      <figcaption><b>P(correct | &theta;)</b> &mdash; a&#8202;=&#8202;2.6 separates sharply,
+      a&#8202;=&#8202;0.35 is <span class="pill dead">dead</span>. Ticks are 12 respondents.</figcaption>
+    </figure>
+    <figure class="plot">
+      <svg viewBox="0 0 320 98" role="img" aria-label="Test information curves for the same three items against the respondent ability distribution">
+        <line x1="0" y1="86" x2="320" y2="86" stroke="var(--rule-firm)" stroke-width="1"/>
+        <path d="M0.0,86.0 L16.0,86.0 L32.0,86.0 L48.0,86.0 L64.0,85.9 L80.0,85.8 L96.0,85.5 L112.0,84.7 L128.0,82.5 L144.0,76.4 L160.0,61.9 L176.0,35.3 L192.0,11.9 L208.0,21.1 L224.0,49.8 L240.0,70.6 L256.0,80.1 L272.0,83.9 L288.0,85.2 L304.0,85.7 L320.0,85.9" fill="none" stroke="var(--accent)" stroke-width="2"/>
+        <path d="M0.0,84.5 L16.0,83.7 L32.0,82.6 L48.0,81.2 L64.0,79.2 L80.0,77.0 L96.0,74.8 L112.0,73.1 L128.0,72.5 L144.0,73.1 L160.0,74.8 L176.0,77.0 L192.0,79.2 L208.0,81.2 L224.0,82.6 L240.0,83.7 L256.0,84.5 L272.0,85.0 L288.0,85.4 L304.0,85.6 L320.0,85.7"   fill="none" stroke="var(--accent)" stroke-width="1.4" opacity=".55"/>
+        <path d="M0.0,85.1 L16.0,85.1 L32.0,85.0 L48.0,84.9 L64.0,84.9 L80.0,84.8 L96.0,84.7 L112.0,84.7 L128.0,84.7 L144.0,84.6 L160.0,84.6 L176.0,84.6 L192.0,84.7 L208.0,84.7 L224.0,84.7 L240.0,84.8 L256.0,84.9 L272.0,84.9 L288.0,85.0 L304.0,85.1 L320.0,85.1"  fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="3 3"/>
+        <g stroke="var(--muted)" stroke-width="1" opacity=".8"><line x1="84.0" y1="86.0" x2="84.0" y2="91.0" /><line x1="104.0" y1="86.0" x2="104.0" y2="91.0" /><line x1="116.0" y1="86.0" x2="116.0" y2="91.0" /><line x1="132.0" y1="86.0" x2="132.0" y2="91.0" /><line x1="138.0" y1="86.0" x2="138.0" y2="91.0" /><line x1="148.0" y1="86.0" x2="148.0" y2="91.0" /><line x1="156.0" y1="86.0" x2="156.0" y2="91.0" /><line x1="166.0" y1="86.0" x2="166.0" y2="91.0" /><line x1="176.0" y1="86.0" x2="176.0" y2="91.0" /><line x1="182.0" y1="86.0" x2="182.0" y2="91.0" /><line x1="196.0" y1="86.0" x2="196.0" y2="91.0" /><line x1="212.0" y1="86.0" x2="212.0" y2="91.0" /></g>
+      </svg>
+      <figcaption><b>I(&theta;)&#8202;=&#8202;a&sup2;P(1&minus;P)</b> &mdash; the sharp item's information
+      peaks at &theta;&#8202;=&#8202;0.9, right of where the models sit. This plot is the pitch.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<dl class="facts">
+  <div class="fact"><dt>Waves</dt><dd>4<small>0 blocks; 1&ndash;3 fan out</small></dd></div>
+  <div class="fact"><dt>Agent briefs</dt><dd>9<small>peak parallelism: 4</small></dd></div>
+  <div class="fact"><dt>Shared files after wave&nbsp;0</dt><dd>0<small>by construction, not convention</small></dd></div>
+  <div class="fact"><dt>Decisions for you</dt><dd>3<small>one changes the stack</small></dd></div>
+</dl>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">01</span>What the spike found</h2>
+  <p class="deck">The spec names two risky assumptions and asks that they be checked first. Both are
+  now checked. One holds; one does not, and it takes the stack with it.</p>
+
+  <div class="finding">
+    <div class="tag">F&middot;1</div>
+    <div class="body">
+      <h3><code>py-irt</code> cannot be a runtime dependency</h3>
+      <p>The maintained <code>py-irt</code> is real &mdash; nd-ball/py-irt, currently 0.7.1 &mdash; but every
+      release from 0.4 onward declares <code>Requires-Python&nbsp;&gt;=3.9,&lt;3.12</code>. The spec targets
+      3.11+. The intersection is <em>Python 3.11 exactly</em>.</p>
+      <p>The failure mode is worse than a version error. On this machine (3.12.3), <code>pip install
+      py-irt</code> resolves happily &mdash; to <strong>0.1.1</strong>, an abandoned 2020 fork whose
+      <code>fit()</code> assembles its summary list on the last line and then returns without it, and which
+      imports <code>pyro.contrib.autoguide</code> and the pre-1.0 <code>MCMC(...).run()</code> API. It is
+      8.3&nbsp;kB and it will not fit anything. Anyone on 3.12+ installing <code>irtcheck</code> gets that
+      silently. Its pins are also our ceiling: <code>typer&lt;0.15</code> and <code>rich&lt;14</code>, both
+      of which the CLI wants.</p>
+      <p class="verdict warn"><strong>Recommendation:</strong> write the 2PL directly in Pyro and keep
+      <code>py-irt</code> as a cross-check fixture, never a dependency. The model and guide are ~90 lines,
+      the SVI loop ~60. We need the variational posterior in hand anyway &mdash; the spec requires credible
+      intervals on <code>a_i</code>, and py-irt's surface is oriented to point estimates. Dropping it
+      restores 3.11+&nbsp;&#8202;&hellip;&#8202;3.13 and removes eleven transitive pins.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="tag">F&middot;2</div>
+    <div class="body">
+      <h3>Per-item records do exist in the wild &mdash; adapters stay at step&nbsp;7</h3>
+      <p>Inspect writes them by default: <code>EvalSample</code> in
+      <code>src/inspect_ai/log/_log.py:419</code> carries <code>id: int | str</code> and
+      <code>scores: dict[str, Score]</code> on every sample of every eval log. lm-eval-harness writes them
+      too, but only under <code>--log_samples</code> alongside an <code>--output_path</code>; without those
+      flags it keeps aggregates only.</p>
+      <p class="verdict">The input contract survives unchanged and adapters do not need to move to step 1.
+      The cost is one README line: lm-eval users with an existing run have to re-run it with
+      <code>--log_samples</code>. That is a re-run of an eval we told them we would never make them run,
+      so it belongs in the README prominently, not in a footnote.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="tag">F&middot;3</div>
+    <div class="body">
+      <h3>The headline number has no data behind it yet</h3>
+      <p>Synthetic matrices prove <em>correctness</em> &mdash; we generate from known <code>a</code>,
+      <code>b</code>, <code>&theta;</code> and check recovery &mdash; but the leave-one-model-out rank
+      correlation that the README is supposed to lead with needs a real suite scored per item by five or
+      more models. We do not have one, and we are not allowed to produce one (no inference, by design).</p>
+      <p class="verdict warn">Scheduled as a wave-2 spike, not assumed. If no public per-item matrix turns
+      up, the fallback is to publish the validation curve on synthetic data with the generating parameters
+      stated, and say plainly that it is synthetic. A stated synthetic number is credible; an unlabelled
+      one is not.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">02</span>Three decisions before anyone starts</h2>
+  <p class="deck">Everything else in this plan I will just do. These three change what gets built, so
+  they are yours.</p>
+
+  <div class="signoff">
+    <div class="row">
+      <div class="qid">D&middot;1 &mdash; stack</div>
+      <p class="q">Own the Pyro model instead of depending on <code>py-irt</code>?</p>
+      <p>This is F&middot;1. Saying no means pinning the whole tool to Python 3.11 and shipping something
+      that mis-installs on 3.12+ with no error. Saying yes means ~150 more lines in one module and a
+      cross-check job that proves our estimates match py-irt's on a 3.11 runner.</p>
+      <span class="rec"><b>Recommend</b> yes &mdash; and keep py-irt in the cross-check, so the README can
+      still say the estimates were validated against it.</span>
+    </div>
+    <div class="row">
+      <div class="qid">D&middot;2 &mdash; validation method</div>
+      <p class="q">How is the held-out model scored on the anchor set?</p>
+      <p>The spec says "score the held-out model on the anchor set only", which admits two readings:
+      plain accuracy over the anchor items, or a &theta; re-estimated from those items with the item
+      parameters held fixed. They rank differently when the anchor set is difficulty-skewed.</p>
+      <span class="rec"><b>Recommend</b> compute both, headline the plain accuracy &mdash; it is what a
+      user actually does with the anchor set, so it is the number that has to hold up.</span>
+    </div>
+    <div class="row">
+      <div class="qid">D&middot;3 &mdash; repo</div>
+      <p class="q">Default branch <code>main</code> or <code>master</code>?</p>
+      <p>AudioBookLib uses <code>master</code>; the fresh repo here has an unborn <code>master</code>.
+      The ported git guard protects both names either way, so this is only about consistency across your
+      projects. Repo does not exist on GitHub yet &mdash; wave 0 creates it.</p>
+      <span class="rec"><b>Recommend</b> <code>main</code> for a new repo; say the word and it is
+      <code>master</code>.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">03</span>What runs at the same time</h2>
+  <p class="deck">Rows in the same column run concurrently, one agent per row, one worktree and one PR
+  per agent. Wave 0 is a hard barrier: nothing else can start until it is on the default branch.</p>
+
+  <div class="laneswrap">
+    <div class="lanes">
+      <div class="lanehead">
+        <span></span><span>Wave 0 &mdash; barrier</span><span>Wave 1 &mdash; fan out</span>
+        <span>Wave 2 &mdash; integrate</span><span>Wave 3 &mdash; optional</span>
+      </div>
+
+      <div class="lane"><div class="who"><b>W0</b>foundation</div>
+        <div class="bar solo">contracts, CI, guard, synth</div><div></div><div></div><div></div></div>
+
+      <div class="lane"><div class="laneband"></div></div>
+
+      <div class="lane"><div class="who"><b>A</b>fit</div>
+        <div></div><div class="bar">Pyro 2PL + SVI + flags</div><div></div><div></div></div>
+      <div class="lane"><div class="who"><b>B</b>select&#8202;+&#8202;validate</div>
+        <div></div><div class="bar">max-information + LOMO</div><div></div><div></div></div>
+      <div class="lane"><div class="who"><b>C</b>report</div>
+        <div></div><div class="bar">rich table, --json</div><div></div><div></div></div>
+      <div class="lane"><div class="who"><b>D</b>adapters</div>
+        <div></div><div class="bar">CSV, lm-eval, Inspect</div><div></div><div></div></div>
+
+      <div class="lane"><div class="laneband"></div></div>
+
+      <div class="lane"><div class="who"><b>W2</b>wiring</div>
+        <div></div><div></div><div class="bar wire">real fitter &rarr; validate</div><div></div></div>
+      <div class="lane"><div class="who"><b>E</b>html report</div>
+        <div></div><div></div><div class="bar">information curve</div><div></div></div>
+      <div class="lane"><div class="who"><b>F</b>cross-check</div>
+        <div></div><div></div><div class="bar">mirt + py-irt @ 3.11</div><div></div></div>
+      <div class="lane"><div class="who"><b>G</b>docs&#8202;+&#8202;packaging</div>
+        <div></div><div></div><div class="bar">README, TestPyPI</div><div></div></div>
+
+      <div class="lane"><div class="laneband"></div></div>
+
+      <div class="lane"><div class="who"><b>H</b>extensions</div>
+        <div></div><div></div><div></div><div class="bar opt">--adaptive, 3PL, N&#8202;threshold</div></div>
+    </div>
+  </div>
+
+  <h3>Why four agents can share wave 1 without touching each other</h3>
+  <p>Two decisions do the work, and they are the only reason this parallelises at all.</p>
+
+  <p><strong>The fit artifact is the contract, and wave 0 can fabricate one.</strong>
+  <code>report</code>, <code>select</code>, <code>validate</code> and the HTML output all consume an
+  <code>IrtFit</code>; none of them needs a fitter to exist. Wave 0 ships <code>synth.py</code>, which
+  emits a valid <code>IrtFit</code> with known ground-truth parameters without fitting anything. That
+  module is not a testing convenience &mdash; it is what decouples agents B, C and E from agent A, who has
+  the slowest and riskiest job.</p>
+
+  <p><strong>Wave 0 pre-creates every file two agents would otherwise both edit.</strong>
+  <code>cli.py</code> lands with all four commands already registered and stubbed to
+  <code>NotImplementedError</code>, so each wave-1 agent edits only its own command module.
+  <code>pyproject.toml</code> lands with the full dependency set for all four waves. Neither file is
+  opened again in wave 1. This is the difference between "we agreed not to conflict" and "a conflict is
+  not reachable".</p>
+
+  <h3>What deliberately is <em>not</em> parallelised</h3>
+  <ul class="tight">
+    <li>Two agents must never both be inside <code>fit/</code>. A sign or scaling error in a Pyro guide
+    hides well, and reviewing a merge of two people's variational approximations is worse than writing it
+    once, carefully.</li>
+    <li>Wave 0 stays one agent. It could split into infra and contracts, but they meet in
+    <code>pyproject.toml</code> and the whole thing is under an hour of work &mdash; the coordination costs
+    more than it saves.</li>
+    <li>The wave-2 wiring commit lands before E, F and G merge, because it is the first moment the
+    end-to-end path is real and it may move interfaces.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">04</span>Agent briefs</h2>
+  <p class="deck">Each brief is a worktree at <code>.claude/worktrees/&lt;name&gt;</code>, a branch, and one
+  PR. <em>Owns</em> is exhaustive: an agent that needs to edit a file outside its list stops and says so
+  rather than editing it.</p>
+
+  <h3 style="margin-top:26px">Wave 0 &mdash; the barrier</h3>
+  <div class="agents">
+    <div class="agent lead" style="grid-column: 1 / -1">
+      <div class="slug">wave0/foundation &middot; 1 agent &middot; blocks everything</div>
+      <h3>Contracts, harness, and a synthetic universe</h3>
+      <p>Creates the GitHub repo and the first commit. Everything here exists so that the next four agents
+      can work without reading each other's code.</p>
+      <dl>
+        <dt>Owns</dt>
+        <dd class="files">pyproject.toml &middot; .gitignore &middot; CLAUDE.md &middot;
+          src/irtcheck/{__init__,cli,records,matrix,artifact,synth}.py &middot;
+          src/irtcheck/io/{__init__,jsonl}.py &middot;
+          src/irtcheck/commands/*.py (stubs) &middot;
+          .claude/hooks/git_guard.py &middot; .claude/settings.json &middot;
+          .github/workflows/ci.yml</dd>
+        <dt>Delivers</dt>
+        <dd><code>ResponseRecord</code> with passthrough fields; <code>ResponseMatrix</code> with
+          <code>--respondent-key</code> composition <em>and pseudo-respondent provenance</em>;
+          <code>IrtFit</code> + <code>SCHEMA_VERSION</code> + gzip-JSON save/load;
+          <code>synth.py</code> generating both a response matrix and a fabricated fit from known
+          parameters; the JSONL reference reader; the git guard ported from AudioBookLib with
+          <code>AEDO_</code>&#8202;&rarr;&#8202;<code>IRTCHECK_</code>; CI.</dd>
+        <dt>Done when</dt>
+        <dd><code>pip install -e .</code> resolves, <code>irtcheck --help</code> lists four commands,
+          <code>pytest</code> is green, <code>python3 .claude/hooks/test_git_guard.py</code> passes, and a
+          throwaway PR goes green on all CI jobs.</dd>
+      </dl>
+      <div class="trap"><b>Load-bearing:</b> the matrix must record which real model each pseudo-respondent
+      derives from. Agent B's holdout is incorrect without it, and adding it later means changing the
+      artifact schema after three agents have built against it.</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:34px">Wave 1 &mdash; four in parallel</h3>
+  <div class="agents">
+
+    <div class="agent">
+      <div class="slug">wave1/fit &middot; largest, start first</div>
+      <h3>A. The 2PL and its posterior</h3>
+      <p>The one job with real modelling risk. Hierarchical priors over <code>a</code> and <code>b</code>,
+      SVI in Pyro, seeded, CPU.</p>
+      <dl>
+        <dt>Owns</dt>
+        <dd class="files">src/irtcheck/fit/{model,fitter,summaries,flags}.py &middot;
+          src/irtcheck/commands/fit.py &middot; tests/test_fit_*.py</dd>
+        <dt>Delivers</dt>
+        <dd>Posterior mean, sd and HDI for <code>a</code>, <code>b</code>, <code>&theta;</code>;
+          convergence diagnostics into the artifact; and the flag set &mdash;
+          <span class="pill stop">insufficient-data</span> when the <code>a</code> interval spans zero,
+          <span class="pill dead">dead</span>, <span class="pill dead">ceiling</span>,
+          <span class="pill dead">floor</span>.</dd>
+        <dt>Done when</dt>
+        <dd>On synthetic data at 15&#8202;&times;&#8202;500, recovered <code>a</code> and <code>b</code>
+          correlate &gt;&#8202;0.9 with truth at a fixed seed, under the <code>slow</code> marker in CI.</dd>
+      </dl>
+      <div class="trap"><b>Trap:</b> the sign and scale of <code>a</code> are not identified without a
+      constraint. Fix it explicitly and write the choice into the artifact metadata, or the cross-check in
+      wave 2 will disagree with <code>mirt</code> for a reason nobody can find.</div>
+    </div>
+
+    <div class="agent">
+      <div class="slug">wave1/select-validate &middot; the headline</div>
+      <h3>B. Anchor selection and leave-one-model-out</h3>
+      <p>Built against injected <code>fit_fn</code> and <code>select_fn</code> callables, so it is complete
+      and tested before agent A merges.</p>
+      <dl>
+        <dt>Owns</dt>
+        <dd class="files">src/irtcheck/{select,validate}.py &middot;
+          src/irtcheck/commands/{select,validate}.py &middot; tests/test_select*.py &middot;
+          tests/test_validate*.py</dd>
+        <dt>Delivers</dt>
+        <dd>Greedy maximum-information selection over the empirical &theta; distribution, excluding
+          flagged items; the LOMO loop; Spearman and Kendall &tau; as a function of <em>n</em>.</dd>
+        <dt>Done when</dt>
+        <dd>With a fake fitter returning ground-truth parameters, &tau;&#8202;&rarr;&#8202;1 as
+          <em>n</em>&#8202;&rarr;&#8202;all items, and the curve is reported at
+          n&#8202;&isin;&#8202;{25,&nbsp;50,&nbsp;100,&nbsp;200,&nbsp;400}.</dd>
+      </dl>
+      <div class="trap"><b>Trap:</b> holding out a model means holding out <em>every pseudo-respondent
+      derived from it</em>. Drop one row and the temperature samples of the same model leak its answers
+      into the fit, and the headline number is inflated and wrong.</div>
+    </div>
+
+    <div class="agent">
+      <div class="slug">wave1/report</div>
+      <h3>C. Terminal report and refusal</h3>
+      <p>Consumes a synthetic artifact and never imports <code>fit</code>. The refusal path is the feature
+      here, not the error case.</p>
+      <dl>
+        <dt>Owns</dt>
+        <dd class="files">src/irtcheck/report.py &middot; src/irtcheck/commands/report.py &middot;
+          tests/test_report*.py</dd>
+        <dt>Delivers</dt>
+        <dd>Per-item <code>rich</code> table with intervals and flags; the header block on every report
+          &mdash; respondent count, item count, dead items, ceiling/floor rates, fit diagnostics;
+          <code>--json</code>.</dd>
+        <dt>Done when</dt>
+        <dd>A thin-data artifact renders a top-of-report refusal that names
+          <code>--respondent-key</code> as the next step, and <code>--json</code> round-trips every column
+          the table shows.</dd>
+      </dl>
+    </div>
+
+    <div class="agent">
+      <div class="slug">wave1/adapters</div>
+      <h3>D. Reading other people's harnesses</h3>
+      <p>Registers into the dispatch table wave 0 leaves open, so it never edits
+      <code>io/__init__.py</code>'s logic.</p>
+      <dl>
+        <dt>Owns</dt>
+        <dd class="files">src/irtcheck/io/{csv,lmeval,inspect}.py &middot;
+          tests/fixtures/adapters/** &middot; tests/test_io_*.py</dd>
+        <dt>Delivers</dt>
+        <dd>Three readers plus format sniffing; committed fixture files captured from each format; and the
+          "emit this from your own harness" JSONL recipe that F&middot;2 says the README needs.</dd>
+        <dt>Done when</dt>
+        <dd>Each adapter turns its fixture into the same <code>ResponseMatrix</code> a hand-written JSONL
+          of the same data produces.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3 style="margin-top:34px">Wave 2 &mdash; wiring, then three in parallel</h3>
+  <div class="agents">
+    <div class="agent lead">
+      <div class="slug">wave2/wiring &middot; merges before E, F, G</div>
+      <h3>W2. First real end-to-end run</h3>
+      <p>Replaces agent B's injected fitter with agent A's real one and runs the whole path on synthetic
+      data. Small, but it is the first time the interfaces meet, so it gets its own PR.</p>
+      <dl>
+        <dt>Owns</dt><dd class="files">src/irtcheck/validate.py (wiring only) &middot;
+          tests/test_end_to_end.py</dd>
+        <dt>Done when</dt><dd><code>fit &rarr; validate</code> produces a rank-correlation curve from a
+          synthetic matrix in CI.</dd>
+      </dl>
+    </div>
+    <div class="agent">
+      <div class="slug">wave2/html</div>
+      <h3>E. The plot that is the pitch</h3>
+      <p>Single self-contained file, no external assets. The centrepiece is the test information curve
+      drawn against the respondents' actual ability distribution &mdash; the two plots at the top of this
+      page, on real data.</p>
+      <dl>
+        <dt>Owns</dt><dd class="files">src/irtcheck/html.py &middot; tests/test_html.py</dd>
+        <dt>Done when</dt><dd>Output opens offline with no network requests and no missing assets, and
+          the &theta; ticks come from the fitted respondents rather than a fixed grid.</dd>
+      </dl>
+    </div>
+    <div class="agent">
+      <div class="slug">wave2/crosscheck &middot; not shipped</div>
+      <h3>F. Agreement with the reference implementations</h3>
+      <p>Same matrix through R's <code>mirt</code> and through <code>py-irt</code> on a throwaway 3.11
+      venv. Lives outside the package.</p>
+      <dl>
+        <dt>Owns</dt><dd class="files">crosscheck/** (excluded from the wheel)</dd>
+        <dt>Done when</dt><dd><code>a</code> and <code>b</code> agree within a stated tolerance after
+          reconciling sign and scale conventions, and the tolerance is written into the README.</dd>
+      </dl>
+    </div>
+    <div class="agent">
+      <div class="slug">wave2/docs</div>
+      <h3>G. README, recipes, packaging</h3>
+      <p>Also carries the F&middot;3 spike: find a public per-item response matrix, or state plainly that
+      the published curve is synthetic.</p>
+      <dl>
+        <dt>Owns</dt><dd class="files">README.md &middot; docs/** &middot; release workflow</dd>
+        <dt>Done when</dt><dd>A TestPyPI upload installs clean into a fresh 3.11, 3.12 and 3.13 venv and
+          <code>irtcheck fit</code> runs the quickstart.</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">05</span>The artifact schema</h2>
+  <p class="deck">This is the interface four agents build against, so it is worth reading closely. Gzipped
+  JSON, not a pickle or a torch checkpoint: it stays inspectable, diffable, and readable without importing
+  torch.</p>
+  <pre>{
+  "schema_version": 1,
+  "irtcheck_version": "0.1.0",
+  "model": {"kind": "2pl", "priors": "hierarchical", "identification": "a &gt; 0, theta ~ N(0,1)"},
+
+  "respondents": {
+    "key":     ["model_id", "prompt_variant"],   // --respondent-key
+    "count":   12,
+    "n_real":  5,                                // pseudo-respondents excluded
+    "ids":     ["claude-sonnet-4-5|v1", ...],
+    "derives_from": ["claude-sonnet-4-5", ...],  // load-bearing for holdout
+    "theta":   {"mean": [...], "sd": [...], "hdi_low": [...], "hdi_high": [...]}
+  },
+
+  "items": {
+    "count":   4312,
+    "ids":     ["mmlu_hs_bio_0412", ...],
+    "a":       {"mean": [...], "sd": [...], "hdi_low": [...], "hdi_high": [...]},
+    "b":       {"mean": [...], "sd": [...], "hdi_low": [...], "hdi_high": [...]},
+    "n_resp":  [...],
+    "p_correct": [...],
+    "flags":   [["insufficient-data"], [], ["ceiling"], ...]
+  },
+
+  "diagnostics": {"elbo_final": ..., "elbo_history": [...], "epochs": ..., "seed": ...},
+  "passthrough": {"subject": {...}, "split": {...}}
+}</pre>
+  <p>Two flags that are easy to conflate and must not be: <span class="pill dead">dead</span> means the
+  item confidently does not discriminate &mdash; the upper end of its <code>a</code> interval is below
+  threshold. <span class="pill stop">insufficient-data</span> means we cannot tell, because the interval
+  spans zero. The first is a finding about the suite. The second is a finding about the data you gave us,
+  and it excludes the item from ranking and selection rather than ranking it anyway.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">06</span>Keeping agents out of each other's way</h2>
+  <p class="deck">Carried over from AudioBookLib, where these were each written after something went
+  wrong.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Mechanism</th><th>What it stops</th><th>Change for irtcheck</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Worktrees at <code>.claude/worktrees/&lt;name&gt;</code>, one per agent</td>
+          <td>One agent's <code>checkout</code> rewriting a tree another is mid-read on.</td>
+          <td class="mono">none &mdash; same layout</td>
+        </tr>
+        <tr>
+          <td><code>git_guard.py</code> as a <code>PreToolUse</code> hook</td>
+          <td>Mutating git in the shared checkout; force-push; push to a protected branch. Read-only git
+          is untouched, and a human's own terminal never sees it.</td>
+          <td class="mono">port as-is; rename<br>AEDO_ &rarr; IRTCHECK_</td>
+        </tr>
+        <tr>
+          <td>Same hook on <code>gh pr merge</code></td>
+          <td>Merging a PR that is behind its base or whose checks are red or still running &mdash; the
+          quiet failure where a green PR describes a tree that no longer exists.</td>
+          <td class="mono">port as-is</td>
+        </tr>
+        <tr>
+          <td>CI on <code>pull_request</code> + push to default, cancel-in-progress on PRs only</td>
+          <td>One run per PR instead of two, without cancelling the runs that would catch a bad merge.</td>
+          <td class="mono">same shape as tests.yml</td>
+        </tr>
+        <tr>
+          <td>A <code>contracts</code> job, first in the workflow</td>
+          <td><strong>The merge-time race.</strong> Two green PRs that break only once combined &mdash;
+          both bumping <code>SCHEMA_VERSION</code>, colliding CLI flags, dependency pins that resolve
+          apart and conflict together.</td>
+          <td class="mono">new &mdash; this repo's<br>answer to the alembic<br>revision-graph check</td>
+        </tr>
+        <tr>
+          <td>No stacked PRs</td>
+          <td>A chain merging into its intermediate branches and getting orphaned on branch delete.</td>
+          <td class="mono">none</td>
+        </tr>
+        <tr>
+          <td>Fixtures namespaced per agent</td>
+          <td>Two agents both writing <code>tests/fixtures/matrix.jsonl</code> with different contents.</td>
+          <td class="mono">new &mdash; only wave 0<br>writes the shared root</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>What the <code>contracts</code> job actually asserts</h3>
+  <ul class="tight">
+    <li><code>SCHEMA_VERSION</code> appears exactly once, and an artifact written by the current code
+    round-trips byte-identically through save/load.</li>
+    <li>Every command registered on the CLI answers <code>--help</code>, and no two commands declare the
+    same flag with different meanings.</li>
+    <li><code>pip install -e .</code> resolves on 3.11, 3.12 and 3.13 &mdash; the check that would have
+    caught F&middot;1 on day one.</li>
+  </ul>
+
+  <h3>Testing a stochastic fit without flaky CI</h3>
+  <p>SVI is stochastic, and a flaky test across four concurrent agents costs more than it catches. Every
+  fit test seeds <code>pyro.set_rng_seed</code>, runs on CPU, and asserts <em>recovery of synthetic ground
+  truth within a stated tolerance</em> rather than exact values. The fit tests carry a <code>slow</code>
+  marker and run in their own CI job, so the other three agents get a fast lane that does not install
+  torch.</p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="num">07</span>Still open</h2>
+  <ul class="tight">
+    <li><strong>Minimum viable respondent count.</strong> The spec is right that this should come from
+    synthetic data rather than a guess. It is a wave-3 study: sweep N from 3 to 40, find where the
+    <code>a</code> intervals stop spanning zero for most items. Until then the tool flags per-item and
+    does not refuse wholesale.</li>
+    <li><strong>Thresholding a continuous <code>raw_score</code>.</strong> Deferred past v1. If it lands,
+    the threshold prints in the report header &mdash; a binarisation the reader cannot see is a silent
+    change to what the model means.</li>
+    <li><strong>A real response matrix</strong> (F&middot;3), assigned to agent G as a spike with a stated
+    fallback.</li>
+  </ul>
+</section>
+
+<footer>
+  Plan derived from <code>irtcheck-spec.md</code>. Parallelisation conventions carried over from
+  AudioBookLib's <code>CLAUDE.md</code>, <code>.claude/hooks/git_guard.py</code> and
+  <code>.github/workflows/tests.yml</code>. Findings F&middot;1 and F&middot;2 verified against PyPI
+  release metadata and the Inspect and lm-eval-harness sources on 2026-09-03.
+</footer>
+
+</div>

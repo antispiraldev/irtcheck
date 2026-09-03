@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "irtcheck"
+version = "0.1.0"
+description = "Find the items in your eval suite that actually measure something."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "AD", email = "192101943+antispiraldev@users.noreply.github.com" }]
+keywords = ["irt", "psychometrics", "evaluation", "benchmarks", "item-response-theory"]
+classifiers = [
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: Science/Research",
+]
+
+# torch and pyro-ppl are real dependencies — `irtcheck fit` cannot run without
+# them — but they are imported lazily, inside irtcheck.fit, and nothing else in
+# the package touches them. That is a deliberate property, not an accident:
+#
+#   - `report`, `select`, `validate` and the HTML output all read a cached .irt
+#     artifact, so analysing a fit on a machine without torch works.
+#   - CI's tests-light job installs everything *except* torch and pyro and runs
+#     the non-fit suite. It fails the moment someone puts `import torch` at the
+#     top of a module that does not need it, which is the only way that property
+#     ever silently breaks.
+#
+# See CLAUDE.md → The lazy torch boundary.
+dependencies = [
+  "typer>=0.12",
+  "rich>=13.7",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "matplotlib>=3.8",
+  "torch>=2.2",
+  "pyro-ppl>=1.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/antispiraldev/irtcheck"
+
+[project.scripts]
+irtcheck = "irtcheck.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/irtcheck"]
+
+# crosscheck/ is the one-time comparison against R's mirt and against py-irt on
+# a 3.11 runner (wave 2, agent F). It is a validation exercise, not shippable
+# code, and it must never enter the wheel.
+[tool.hatch.build.targets.sdist]
+exclude = ["/crosscheck", "/docs", "/.github", "/.claude"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: needs torch/pyro and actually fits a model (minutes, not seconds)",
+]
+# Fail on an unregistered marker rather than silently running everything.
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# The git guard is a port from the AudioBookLib repo, kept close to its
+# original so fixes can travel between the two. It has its own
+# dependency-free test suite (python3 .claude/hooks/test_git_guard.py) and
+# is not part of the package.
+exclude = [".claude"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
