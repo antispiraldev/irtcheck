@@ -18,6 +18,7 @@ Four agents work a wave concurrently. The specific collisions this catches:
 from __future__ import annotations
 
 import ast
+import importlib
 import re
 import subprocess
 import sys
@@ -117,11 +118,28 @@ def test_no_two_commands_disagree_about_a_flag():
 
 def test_unimplemented_commands_name_their_owning_brief():
     """A stub must say who owns it, so a wave-1 agent picking up work knows
-    whether the gap is theirs to fill."""
-    from irtcheck.commands import report
+    whether the gap is theirs to fill.
 
-    with pytest.raises(NotImplementedError, match="wave1/report"):
-        report.run()
+    Written against whichever commands are *still* stubs rather than against
+    one named command. Each wave-1 brief replaces exactly one of these stubs,
+    and a test that named `report` would have to be edited by the report agent,
+    then by the fit agent, then by select-validate — three concurrent branches
+    all touching this file, which is the one file in the repo that exists to
+    catch what happens when concurrent branches collide.
+
+    An implemented `run` raises TypeError for the arguments cli.py would have
+    passed it; that is not a stub message and nothing is asserted about it.
+    """
+    for name in sorted(EXPECTED_COMMANDS):
+        module = importlib.import_module(f"irtcheck.commands.{name}")
+        try:
+            module.run()
+        except NotImplementedError as exc:
+            assert re.search(r"wave\d+/[a-z-]+", str(exc)), (
+                f"the `{name}` stub does not name the brief that owns it: {exc}"
+            )
+        except TypeError:
+            pass  # implemented, and its signature is checked by its own tests
 
 
 # -- the lazy torch boundary -------------------------------------------------
