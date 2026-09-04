@@ -126,6 +126,18 @@ def test_item_ids_keep_their_leading_zeros(tmp_path):
     assert list(read_any(path, fmt="csv"))[0].item_id == "0042"
 
 
+def test_a_csv_under_another_extension_is_still_sniffed(tmp_path):
+    """The sniff window is a byte count, so a multibyte character can straddle
+    its end. That says nothing about the format and must not veto the read."""
+    from irtcheck.io import SNIFF_BYTES
+
+    path = tmp_path / "responses.txt"
+    head = b"model_id,item_id,correct,note\na,i1,1,"
+    padded = head + b"x" * (SNIFF_BYTES - 1 - len(head))  # last byte of the window
+    path.write_bytes(padded + "é\nb,i1,0,short\n".encode())
+    assert [r.model_id for r in read_any(path)] == ["a", "b"]
+
+
 def test_a_utf8_bom_does_not_become_part_of_the_first_column(tmp_path):
     path = tmp_path / "r.csv"
     path.write_bytes("model_id,item_id,correct\na,i1,1\n".encode("utf-8-sig"))

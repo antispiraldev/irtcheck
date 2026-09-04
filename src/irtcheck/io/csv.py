@@ -135,10 +135,10 @@ def read_csv(path: Path) -> Iterator[ResponseRecord]:
 
 
 def _sniff(path: Path, head: bytes) -> bool:
-    try:
-        text = head.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        return False
+    # errors="ignore" because the sniff window is a byte count and lands
+    # wherever it lands — a multibyte character straddling the end of it is not
+    # evidence about the format, and the header line is at the start anyway.
+    text = head.decode("utf-8-sig", errors="ignore")
     for line in text.splitlines():
         if not line.strip():
             continue
