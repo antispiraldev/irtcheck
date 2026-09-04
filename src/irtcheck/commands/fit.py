@@ -1,17 +1,146 @@
 """`irtcheck fit` — owned by wave1/fit.
 
-Wave 0 leaves this a stub so that cli.py can declare the whole command surface
-up front and then stay frozen. Replace `run` with the implementation; do not
-change its signature without changing cli.py, which is a single-owner file.
+Read a response file, build the matrix, fit the 2PL, write the artifact. The
+slow half of a deliberately two-stage tool: everything after this reads the
+cached `.irt` and is instant.
+
+Nothing here imports torch or pyro at module scope, and `irtcheck.fit` is
+imported inside `run()`. cli.py already defers importing *this* module, so the
+two together are what keep `irtcheck --help` and `irtcheck report` working on a
+machine that has never installed torch. See CLAUDE.md → The lazy torch boundary.
 """
 
 from __future__ import annotations
 
+import time
+from pathlib import Path
 from typing import Any
+
+import typer
+from rich.console import Console
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
+
+from irtcheck.artifact import (
+    FLAG_CEILING,
+    FLAG_DEAD,
+    FLAG_FLOOR,
+    FLAG_INSUFFICIENT_DATA,
+)
+from irtcheck.io import read_any
+from irtcheck.matrix import MatrixError, build_matrix, parse_respondent_key
+from irtcheck.records import RecordError
+
+# Progress is redrawn every this many SVI steps. Often enough to look alive on
+# a 4000-item suite, rarely enough that the terminal is not the bottleneck.
+PROGRESS_EVERY = 25
 
 
 def run(**kwargs: Any) -> None:
-    raise NotImplementedError(
-        "`irtcheck fit` is not implemented yet — it belongs to the wave1/fit brief "
-        "(see docs/build-plan.html). Expected arguments: responses, output, respondent_key, fmt, priors, epochs, seed, device, embed_responses."
+    """Entry point called by cli.fit. Signature is fixed by the frozen cli.py."""
+    responses: Path = kwargs["responses"]
+    output: Path = kwargs["output"]
+    # highlight=False: rich's automatic number highlighting inserts escape
+    # codes inside an error message's numbers, which makes the messages harder
+    # to read and impossible to grep.
+    console = Console(stderr=True, highlight=False)
+
+    try:
+        key = parse_respondent_key(kwargs["respondent_key"])
+        matrix = build_matrix(read_any(responses, fmt=kwargs["fmt"]), respondent_key=key)
+    except (MatrixError, RecordError) as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    # Imported here, not at module scope: this line is the only reason this
+    # process needs torch at all.
+    from irtcheck.fit.fitter import FitError, fit_matrix
+
+    _describe(console, matrix)
+
+    epochs = int(kwargs["epochs"])
+    started = time.perf_counter()
+    try:
+        with Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total} steps"),
+            TextColumn("ELBO {task.fields[elbo]:>12,.1f}"),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("fitting 2PL", total=epochs, elbo=float("nan"))
+
+            def on_step(step: int, elbo: float) -> None:
+                if step % PROGRESS_EVERY == 0 or step == epochs - 1:
+                    progress.update(task, completed=step + 1, elbo=elbo)
+
+            fit = fit_matrix(
+                matrix,
+                priors=kwargs["priors"],
+                epochs=epochs,
+                seed=int(kwargs["seed"]),
+                device=kwargs["device"],
+                embed_responses=bool(kwargs["embed_responses"]),
+                on_step=on_step,
+            )
+    except FitError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fit.save(output)
+    _summarise(console, fit, output, time.perf_counter() - started)
+
+
+def _describe(console: Console, matrix) -> None:
+    """What is about to be fitted, before the slow part starts.
+
+    Respondent count leads, and it is the count of *real models*: it is the
+    binding constraint on everything this tool can say, and a user watching
+    "12 respondents (5 real models)" scroll past has been told the most
+    important thing about their fit before it has finished.
+    """
+    pseudo = (
+        f" ([bold]{matrix.n_real_models}[/bold] real models"
+        f", key {'+'.join(matrix.respondent_key)})"
+        if matrix.n_respondents != matrix.n_real_models
+        else ""
     )
+    console.print(
+        f"[bold]{matrix.n_respondents}[/bold] respondents{pseudo}, "
+        f"[bold]{matrix.n_items}[/bold] items, "
+        f"{matrix.n_responses:,} responses ({matrix.density:.0%} of the grid)"
+    )
+    if matrix.n_real_models < 5:
+        console.print(
+            f"[yellow]note:[/yellow] {matrix.n_real_models} real model(s). Item "
+            "parameters will be mostly prior, and most items will come back "
+            "flagged insufficient-data. --respondent-key model_id,prompt_variant "
+            "(or any field distinguishing runs) is the cheapest way to add "
+            "respondents."
+        )
+
+
+def _summarise(console: Console, fit, output: Path, elapsed: float) -> None:
+    counts = fit.diagnostics.get("flag_counts", {})
+    size = output.stat().st_size
+    console.print(
+        f"wrote [bold]{output}[/bold] ({size / 1024:.0f} KiB) in {elapsed:.1f}s — "
+        f"ELBO {fit.diagnostics['elbo_final']:,.1f} over "
+        f"{fit.diagnostics['epochs']:,} epochs, seed {fit.diagnostics['seed']}"
+    )
+    console.print(
+        f"  {counts.get(FLAG_INSUFFICIENT_DATA, 0)} insufficient-data · "
+        f"{counts.get(FLAG_DEAD, 0)} dead · "
+        f"{counts.get(FLAG_CEILING, 0)} ceiling · {counts.get(FLAG_FLOOR, 0)} floor"
+    )
+    undetermined = counts.get(FLAG_INSUFFICIENT_DATA, 0)
+    if undetermined > fit.n_items // 2:
+        console.print(
+            f"[yellow]note:[/yellow] {undetermined} of {fit.n_items} items have a "
+            "discrimination interval spanning zero — with this many respondents "
+            "the data cannot tell whether they separate anyone. They are excluded "
+            "from ranking and selection. More respondents is the fix."
+        )
+    console.print(f"next: [bold]irtcheck report {output}[/bold]")
