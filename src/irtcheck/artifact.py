@@ -369,8 +369,20 @@ def compute_flags(
         elif a.hdi_high[i] < dead_threshold:
             item.append(FLAG_DEAD)
 
+        # An item nobody answered has p_correct = NaN, and neither "everyone got
+        # it right" nor "everyone got it wrong" is a claim you can make about
+        # it, so it gets no ceiling/floor flag. `p != p` is the NaN test; the
+        # original `p == p or p is not None` was a no-op that always evaluated
+        # true, and only avoided mis-flagging because every NaN comparison
+        # below is false anyway.
+        #
+        # This is not the thing keeping unanswered items out of anchor sets.
+        # `select_anchor` filters `n_resp == 0` explicitly and independently of
+        # flags, because leave-one-model-out manufactures such items — an item
+        # only the held-out model answered has no responses in the held-out fit
+        # — and selection must not depend on a flag rule to exclude them.
         p = p_correct[i]
-        if p == p or p is not None:  # not NaN
+        if p is not None and p == p:
             if p >= CEILING_THRESHOLD:
                 item.append(FLAG_CEILING)
             elif p <= FLOOR_THRESHOLD:

@@ -3,6 +3,9 @@ stand-in for a real one, three briefs are building against a fiction."""
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -18,11 +21,30 @@ def test_synthetic_fit_is_a_valid_artifact(tmp_path):
 
 
 def test_synthetic_fit_needs_no_fitter():
-    """The whole point: report/select/validate/html are unblocked on day one."""
-    import sys
+    """The whole point: report/select/validate/html are unblocked on day one.
 
-    synthetic_fit(n_models=5, n_items=20, seed=0)
-    assert "torch" not in sys.modules, "synth pulled in torch; the lazy boundary is broken"
+    In a subprocess, because `sys.modules` is session-global and pytest imports
+    every test module during collection. Once `tests/test_fit_*.py` existed, any
+    run that collected them had torch loaded before this test ever ran, and the
+    original in-process assertion failed for a reason that had nothing to do
+    with synth. It went unnoticed in CI only because the jobs are split — the
+    light jobs have no torch to import, and tests-fit selects `-m slow`, which
+    deselects this test. A green pipeline and a red local `pytest` is the worst
+    of both, so the check now measures what it claims to: a fresh interpreter
+    that imports synth and nothing else.
+
+    `test_contracts.py::test_importing_the_cli_does_not_pull_in_torch` uses the
+    same shape for the same reason.
+    """
+    code = (
+        "import sys; from irtcheck.synth import synthetic_fit; "
+        "synthetic_fit(n_models=5, n_items=20, seed=0); "
+        "sys.exit(1 if 'torch' in sys.modules else 0)"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, (
+        "synth pulled in torch; the lazy boundary is broken.\n" + result.stderr
+    )
 
 
 def test_generation_is_reproducible():
