@@ -72,7 +72,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from irtcheck.io import FormatError, Reader, register
+from irtcheck.io import SNIFF_BYTES, FormatError, Reader, register
 from irtcheck.records import RecordError, ResponseRecord, build_record, coerce_correct
 
 HEADER_JSON = "header.json"
@@ -277,8 +277,10 @@ def _log_files(directory: Path) -> list[Path]:
         if candidate.suffix.lower() == ".eval":
             files.append(candidate)
         elif candidate.suffix.lower() == ".json":
+            # A directory can hold anything — an lm-eval results file, a config,
+            # someone's notes — so a .json is only taken if it sniffs as a log.
             with candidate.open("rb") as handle:
-                if _sniff(candidate, handle.read(8192)):
+                if _sniff(candidate, handle.read(SNIFF_BYTES)):
                     files.append(candidate)
     if not files:
         raise FormatError(
