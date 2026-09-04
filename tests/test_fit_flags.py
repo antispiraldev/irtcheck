@@ -92,11 +92,11 @@ def test_a_real_fit_and_a_fabricated_one_flag_by_the_same_rules():
     """The property the other three wave-1 briefs depend on."""
     import numpy as np
 
-    from irtcheck.fit.fitter import fit_matrix
+    from irtcheck.fit.fitter import fit_2pl
     from irtcheck.synth import synthetic_matrix
 
     matrix, _ = synthetic_matrix(n_models=8, n_items=60, seed=9)
-    fit = fit_matrix(matrix, epochs=400, seed=0)
+    fit = fit_2pl(matrix, epochs=400, seed=0)
     recomputed = compute_flags(
         fit.a, fit.b, fit.p_correct, fit.theta.mean
     )

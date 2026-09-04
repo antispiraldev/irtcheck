@@ -1,6 +1,6 @@
 """SVI over the 2PL, and the artifact that comes out of it.
 
-`fit_matrix(matrix) -> IrtFit` is the entry point everything else uses:
+`fit_2pl(matrix) -> IrtFit` is the entry point everything else uses:
 `irtcheck fit` calls it once, and `irtcheck validate` calls it k times for the
 leave-one-model-out refits. It takes a ResponseMatrix and returns a fully
 formed, already-validated artifact — no half-populated intermediate object that
@@ -59,7 +59,7 @@ class FitError(RuntimeError):
     pass
 
 
-def fit_matrix(
+def fit_2pl(
     matrix,
     *,
     priors: str = PRIORS_HIERARCHICAL,
@@ -110,7 +110,7 @@ def fit_matrix(
             raise FitError(
                 f"the ELBO went non-finite at step {step}. That is a diverged "
                 "optimisation, not a bad matrix: retry with a lower learning rate "
-                "(fit_matrix(..., lr=...)) and report it, because the default is "
+                "(fit_2pl(..., lr=...)) and report it, because the default is "
                 "meant to be safe on any matrix this tool accepts."
             )
         elbo_history.append(elbo)

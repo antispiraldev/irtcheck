@@ -43,7 +43,7 @@ from irtcheck.artifact import (  # noqa: E402
     IrtFit,
     Posterior,
 )
-from irtcheck.fit.fitter import FitError, canonical_sign, fit_matrix  # noqa: E402
+from irtcheck.fit.fitter import FitError, canonical_sign, fit_2pl  # noqa: E402
 from irtcheck.synth import synthetic_matrix  # noqa: E402
 
 pytestmark = pytest.mark.slow
@@ -74,7 +74,7 @@ def correlation(x, y) -> float:
 def thin_fit():
     """15 respondents x 500 items — the size the tool is actually aimed at."""
     matrix, truth = synthetic_matrix(n_models=15, n_items=500, seed=0)
-    return fit_matrix(matrix, epochs=2000, seed=0), truth
+    return fit_2pl(matrix, epochs=2000, seed=0), truth
 
 
 @pytest.fixture(scope="module")
@@ -82,7 +82,7 @@ def deep_fit():
     """300 respondents: the regime where psychometrics is comfortable, and the
     only one where a discrimination can be pinned down to a few percent."""
     matrix, truth = synthetic_matrix(n_models=300, n_items=500, seed=0)
-    return fit_matrix(matrix, epochs=2000, seed=0), truth
+    return fit_2pl(matrix, epochs=2000, seed=0), truth
 
 
 # -- recovery ----------------------------------------------------------------
@@ -127,7 +127,7 @@ def test_recovers_from_a_ragged_matrix():
     a third of the grid missing costs accuracy and nothing else."""
     matrix, truth = synthetic_matrix(n_models=15, n_items=500, seed=0, missing=0.3)
     assert matrix.n_responses < matrix.n_items * matrix.n_respondents
-    fit = fit_matrix(matrix, epochs=2000, seed=0)
+    fit = fit_2pl(matrix, epochs=2000, seed=0)
     true_a, true_b, true_theta = align(fit, truth)
     assert correlation(fit.a.mean, true_a) > 0.35
     assert correlation(fit.b.mean, true_b) > 0.65
@@ -138,7 +138,7 @@ def test_vague_priors_also_recover(thin_fit):
     """`--priors vague` is a real alternative, not a trap door: it recovers
     comparably and its interval on `a` is wider, because nothing pools."""
     matrix, truth = synthetic_matrix(n_models=15, n_items=500, seed=0)
-    fit = fit_matrix(matrix, epochs=2000, seed=0, priors="vague")
+    fit = fit_2pl(matrix, epochs=2000, seed=0, priors="vague")
     true_a, true_b, _ = align(fit, truth)
     assert correlation(fit.a.mean, true_a) > 0.45
     assert correlation(fit.b.mean, true_b) > 0.80
@@ -257,7 +257,7 @@ def test_the_artifact_carries_its_responses_so_validate_can_refit(thin_fit):
 
 def test_no_embed_responses_leaves_a_fit_that_explains_itself():
     matrix, _ = synthetic_matrix(n_models=5, n_items=30, seed=2)
-    fit = fit_matrix(matrix, epochs=50, seed=0, embed_responses=False)
+    fit = fit_2pl(matrix, epochs=50, seed=0, embed_responses=False)
     assert fit.responses is None
     with pytest.raises(ArtifactError, match="no-embed-responses"):
         fit.matrix()
@@ -284,7 +284,7 @@ def test_diagnostics_carry_the_fit_history(thin_fit):
 def test_a_long_run_thins_its_elbo_history():
     """A 50k-epoch fit should not put 50k floats in the artifact."""
     matrix, _ = synthetic_matrix(n_models=5, n_items=20, seed=2)
-    fit = fit_matrix(matrix, epochs=2500, seed=0)
+    fit = fit_2pl(matrix, epochs=2500, seed=0)
     history = fit.diagnostics["elbo_history"]
     assert len(history) < 2500
     assert fit.diagnostics["elbo_history_stride"] > 1
@@ -296,7 +296,7 @@ def test_pseudo_respondents_are_fitted_but_reported_as_their_models():
     models for the header. Getting this wrong misrepresents the one thing the
     tool exists to be honest about."""
     matrix, _ = synthetic_matrix(n_models=5, n_items=40, variants_per_model=3, seed=4)
-    fit = fit_matrix(matrix, epochs=200, seed=0)
+    fit = fit_2pl(matrix, epochs=200, seed=0)
     assert fit.n_respondents == 15
     assert fit.n_real_models == 5
     assert fit.has_pseudo_respondents
@@ -315,8 +315,8 @@ def test_the_same_seed_gives_the_same_numbers():
     seconds differ between any two runs by design, so the artifacts are not
     byte-identical and should not be."""
     matrix, _ = synthetic_matrix(n_models=6, n_items=30, seed=5)
-    first = fit_matrix(matrix, epochs=300, seed=11)
-    second = fit_matrix(matrix, epochs=300, seed=11)
+    first = fit_2pl(matrix, epochs=300, seed=11)
+    second = fit_2pl(matrix, epochs=300, seed=11)
     assert first.a.mean == second.a.mean
     assert first.a.hdi_low == second.a.hdi_low
     assert first.b.mean == second.b.mean
@@ -327,8 +327,8 @@ def test_the_same_seed_gives_the_same_numbers():
 
 def test_a_different_seed_gives_a_different_fit(tmp_path):
     matrix, _ = synthetic_matrix(n_models=6, n_items=30, seed=5)
-    one = fit_matrix(matrix, epochs=300, seed=11)
-    two = fit_matrix(matrix, epochs=300, seed=12)
+    one = fit_2pl(matrix, epochs=300, seed=11)
+    two = fit_2pl(matrix, epochs=300, seed=12)
     assert one.a.mean != two.a.mean
 
 
@@ -338,22 +338,22 @@ def test_a_fit_after_another_fit_is_unaffected_by_it():
     one's parameters and the headline number would be quietly wrong."""
     matrix, _ = synthetic_matrix(n_models=6, n_items=30, seed=5)
     other, _ = synthetic_matrix(n_models=8, n_items=25, seed=6)
-    alone = fit_matrix(matrix, epochs=300, seed=1)
-    fit_matrix(other, epochs=300, seed=99)
-    after = fit_matrix(matrix, epochs=300, seed=1)
+    alone = fit_2pl(matrix, epochs=300, seed=1)
+    fit_2pl(other, epochs=300, seed=99)
+    after = fit_2pl(matrix, epochs=300, seed=1)
     assert alone.a.mean == after.a.mean
 
 
 def test_epochs_must_be_positive():
     matrix, _ = synthetic_matrix(n_models=5, n_items=10, seed=0)
     with pytest.raises(FitError, match="at least 1"):
-        fit_matrix(matrix, epochs=0)
+        fit_2pl(matrix, epochs=0)
 
 
 def test_an_unknown_prior_family_is_refused():
     matrix, _ = synthetic_matrix(n_models=5, n_items=10, seed=0)
     with pytest.raises(FitError, match="hierarchical"):
-        fit_matrix(matrix, epochs=10, priors="uniform")
+        fit_2pl(matrix, epochs=10, priors="uniform")
 
 
 def test_cuda_is_refused_clearly_when_there_is_no_cuda():
@@ -363,4 +363,4 @@ def test_cuda_is_refused_clearly_when_there_is_no_cuda():
         pytest.skip("this machine has CUDA, so there is no error to report")
     matrix, _ = synthetic_matrix(n_models=5, n_items=10, seed=0)
     with pytest.raises(FitError, match="cpu"):
-        fit_matrix(matrix, epochs=10, device="cuda")
+        fit_2pl(matrix, epochs=10, device="cuda")

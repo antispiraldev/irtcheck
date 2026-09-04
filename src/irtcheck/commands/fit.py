@@ -27,37 +27,63 @@ from irtcheck.artifact import (
     FLAG_INSUFFICIENT_DATA,
 )
 from irtcheck.io import read_any
-from irtcheck.matrix import MatrixError, build_matrix, parse_respondent_key
+from irtcheck.matrix import (
+    DEFAULT_RESPONDENT_KEY,
+    MatrixError,
+    build_matrix,
+    parse_respondent_key,
+)
 from irtcheck.records import RecordError
 
 # Progress is redrawn every this many SVI steps. Often enough to look alive on
 # a 4000-item suite, rarely enough that the terminal is not the bottleneck.
 PROGRESS_EVERY = 25
 
+# The --respondent-key default, in the spelling the flag takes. Restated here
+# only so `run` has a signature that stands on its own when called directly;
+# cli.py is what a user actually sees.
+DEFAULT_KEY_SPEC = ",".join(DEFAULT_RESPONDENT_KEY)
 
-def run(**kwargs: Any) -> None:
-    """Entry point called by cli.fit. Signature is fixed by the frozen cli.py."""
-    responses: Path = kwargs["responses"]
-    output: Path = kwargs["output"]
+
+def run(
+    *,
+    responses: Path,
+    output: Path,
+    respondent_key: str = DEFAULT_KEY_SPEC,
+    fmt: str | None = None,
+    priors: str = "hierarchical",
+    epochs: int = 2000,
+    seed: int = 0,
+    device: str = "cpu",
+    embed_responses: bool = True,
+    **_: Any,
+) -> None:
+    """Entry point called by cli.fit.
+
+    The keywords are exactly the ones the frozen cli.py passes, spelled out
+    rather than taken as **kwargs so that calling `run()` with nothing raises
+    TypeError — which is how test_contracts.py tells an implemented command
+    from a stub that still has to name its owning brief.
+    """
     # highlight=False: rich's automatic number highlighting inserts escape
     # codes inside an error message's numbers, which makes the messages harder
     # to read and impossible to grep.
     console = Console(stderr=True, highlight=False)
 
     try:
-        key = parse_respondent_key(kwargs["respondent_key"])
-        matrix = build_matrix(read_any(responses, fmt=kwargs["fmt"]), respondent_key=key)
+        key = parse_respondent_key(respondent_key)
+        matrix = build_matrix(read_any(responses, fmt=fmt), respondent_key=key)
     except (MatrixError, RecordError) as exc:
         console.print(f"[red]error:[/red] {exc}")
         raise typer.Exit(1) from exc
 
     # Imported here, not at module scope: this line is the only reason this
     # process needs torch at all.
-    from irtcheck.fit.fitter import FitError, fit_matrix
+    from irtcheck.fit.fitter import FitError, fit_2pl
 
     _describe(console, matrix)
 
-    epochs = int(kwargs["epochs"])
+    epochs = int(epochs)
     started = time.perf_counter()
     try:
         with Progress(
@@ -75,13 +101,13 @@ def run(**kwargs: Any) -> None:
                 if step % PROGRESS_EVERY == 0 or step == epochs - 1:
                     progress.update(task, completed=step + 1, elbo=elbo)
 
-            fit = fit_matrix(
+            fit = fit_2pl(
                 matrix,
-                priors=kwargs["priors"],
+                priors=priors,
                 epochs=epochs,
-                seed=int(kwargs["seed"]),
-                device=kwargs["device"],
-                embed_responses=bool(kwargs["embed_responses"]),
+                seed=int(seed),
+                device=device,
+                embed_responses=bool(embed_responses),
                 on_step=on_step,
             )
     except FitError as exc:
