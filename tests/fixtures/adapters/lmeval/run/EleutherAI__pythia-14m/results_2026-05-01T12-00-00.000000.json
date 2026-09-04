@@ -1,0 +1,31 @@
+{
+  "results": {
+    "gsm8k": {
+      "alias": "gsm8k",
+      "exact_match,strict-match": 0.5,
+      "exact_match_stderr,strict-match": 0.5
+    },
+    "mmlu_high_school_biology": {
+      "alias": "mmlu_high_school_biology",
+      "acc,none": 0.5,
+      "acc_stderr,none": 0.5,
+      "acc_norm,none": 1.0,
+      "acc_norm_stderr,none": 0.0
+    }
+  },
+  "config": {
+    "model": "hf",
+    "model_args": "pretrained=EleutherAI/pythia-14m,dtype=float32",
+    "batch_size": "1",
+    "device": "cpu",
+    "limit": 2,
+    "bootstrap_iters": 100000,
+    "random_seed": 0
+  },
+  "git_hash": "0000000",
+  "date": 1777982400.0,
+  "model_source": "hf",
+  "model_name": "EleutherAI/pythia-14m",
+  "model_name_sanitized": "EleutherAI__pythia-14m",
+  "total_evaluation_time_seconds": "3.1"
+}

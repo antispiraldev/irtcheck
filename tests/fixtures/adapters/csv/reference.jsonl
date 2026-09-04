@@ -1,0 +1,6 @@
+{"model_id": "claude-sonnet-4-5", "item_id": "mmlu_hs_bio_0412", "correct": 1, "subject": "biology", "split": "test", "raw_score": 0.91, "prompt_variant": "plain"}
+{"model_id": "claude-sonnet-4-5", "item_id": "mmlu_hs_bio_0413", "correct": 0, "subject": "biology", "split": "test", "raw_score": 0.12, "prompt_variant": "plain"}
+{"model_id": "claude-sonnet-4-5", "item_id": "mmlu_hs_bio_0414", "correct": 1, "subject": "biology", "split": "test", "raw_score": 0.64, "prompt_variant": "plain"}
+{"model_id": "gpt-4o-mini", "item_id": "mmlu_hs_bio_0412", "correct": true, "subject": "biology", "split": "test", "raw_score": 0.77, "prompt_variant": "plain"}
+{"model_id": "gpt-4o-mini", "item_id": "mmlu_hs_bio_0413", "correct": 0, "subject": "biology", "split": "test", "raw_score": 0.31, "prompt_variant": "plain"}
+{"model_id": "gpt-4o-mini", "item_id": "mmlu_hs_bio_0414", "correct": 0, "subject": "biology", "split": "test", "raw_score": 0.08, "prompt_variant": "plain"}
