@@ -13,6 +13,7 @@ import typer
 from irtcheck.artifact import FLAG_CEILING, FLAG_FLOOR, FLAG_INSUFFICIENT_DATA
 from irtcheck.commands import select as command
 from irtcheck.select import (
+    DEFAULT_OBJECTIVE,
     OBJECTIVE_MAX_INFORMATION,
     OBJECTIVE_MIN_VARIANCE,
     SelectError,
@@ -218,7 +219,7 @@ def test_command_writes_json_and_summarises_to_stderr(tmp_path: Path, capsys):
     payload = json.loads(out.read_text())
     assert len(payload["item_ids"]) == 20
     assert payload["requested"] == 20
-    assert payload["objective"] == OBJECTIVE_MIN_VARIANCE
+    assert payload["objective"] == DEFAULT_OBJECTIVE
     assert payload["source"] == str(path)
 
     captured = capsys.readouterr()
