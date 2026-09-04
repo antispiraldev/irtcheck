@@ -154,3 +154,40 @@ def test_usable_items_excludes_undecidable_and_degenerate_items():
     usable = set(fit.usable_items())
     for flag in (FLAG_INSUFFICIENT_DATA, FLAG_CEILING, FLAG_FLOOR):
         assert usable.isdisjoint(fit.flagged(flag))
+
+
+def test_an_unanswered_item_gets_no_ceiling_or_floor_flag():
+    """p_correct is NaN when nobody answered, and neither "everyone got it
+    right" nor "everyone got it wrong" is a claim you can make about an item
+    with no responses.
+
+    The guard this pins was originally a no-op (`p == p or p is not None`,
+    always true) that happened to behave correctly because every NaN comparison
+    is false. Correct-by-accident is one refactor away from wrong, and the wrong
+    version flags an unanswered item `floor` — which reads in a report as
+    "every model got this wrong" about a question no model was asked.
+    """
+    a = post([1.5], [0.05])
+    b = post([0.0], [0.1])
+    flags = compute_flags(a, b, [float("nan")], [0.0, 1.0])
+    assert FLAG_CEILING not in flags[0]
+    assert FLAG_FLOOR not in flags[0]
+
+
+def test_unanswered_items_are_excluded_by_select_not_by_flags():
+    """Belt and braces, asserted from the outside.
+
+    Anchor selection must not inherit its exclusion of unanswered items from
+    the flag rules above — leave-one-model-out manufactures zero-response items
+    (an item only the held-out model answered has none in the held-out fit), and
+    a fake or over-confident fitter can leave such an item unflagged. select
+    filters n_resp == 0 itself.
+    """
+    from irtcheck.select import select_anchor
+
+    fit, _ = synthetic_fit(n_models=8, n_items=40, seed=2)
+    ghost = 0
+    fit.n_resp[ghost] = 0
+    fit.flags[ghost] = []  # unflagged, so only the explicit filter can save us
+    chosen = select_anchor(fit, fit.n_items)
+    assert fit.item_ids[ghost] not in set(chosen.item_ids)
