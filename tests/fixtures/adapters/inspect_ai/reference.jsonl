@@ -1,0 +1,6 @@
+{"model_id": "openai/gpt-4o-mini", "item_id": "arc_easy_Mercury_7175875", "correct": 1, "subject": "arc_easy"}
+{"model_id": "openai/gpt-4o-mini", "item_id": "arc_easy_Mercury_SC_405487", "correct": 0, "subject": "arc_easy"}
+{"model_id": "openai/gpt-4o-mini", "item_id": "arc_easy_MCAS_2000_4_6", "correct": 1, "subject": "arc_easy"}
+{"model_id": "anthropic/claude-haiku-4-5", "item_id": "arc_easy_Mercury_7175875", "correct": 0, "subject": "arc_easy"}
+{"model_id": "anthropic/claude-haiku-4-5", "item_id": "arc_easy_Mercury_SC_405487", "correct": 1, "subject": "arc_easy"}
+{"model_id": "anthropic/claude-haiku-4-5", "item_id": "arc_easy_MCAS_2000_4_6", "correct": 0, "subject": "arc_easy"}

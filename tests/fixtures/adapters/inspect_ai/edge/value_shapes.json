@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "vS1",
+    "created": "2026-05-01T12:00:00+00:00",
+    "task": "value_shapes",
+    "dataset": {"name": "value_shapes", "samples": 5},
+    "model": "openai/gpt-4o-mini"
+  },
+  "samples": [
+    {"id": 1, "epoch": 1, "input": "q1", "target": "a", "scores": {"match": {"value": "C"}}, "metadata": {"subject": "arithmetic"}},
+    {"id": 2, "epoch": 1, "input": "q2", "target": "a", "scores": {"match": {"value": "I"}}, "metadata": {"subject": "arithmetic"}},
+    {"id": 3, "epoch": 1, "input": "q3", "target": "a", "scores": {"match": {"value": true}}, "metadata": {"subject": "arithmetic"}},
+    {"id": 4, "epoch": 1, "input": "q4", "target": "a", "scores": {"match": {"value": 0}}, "metadata": {"subject": "arithmetic"}},
+    {"id": 5, "epoch": 1, "input": "q5", "target": "a", "scores": {"match": {"value": "N", "explanation": "refused"}}, "metadata": {"subject": "arithmetic"}}
+  ]
+}

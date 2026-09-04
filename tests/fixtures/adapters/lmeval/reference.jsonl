@@ -1,0 +1,8 @@
+{"model_id": "EleutherAI/pythia-14m", "item_id": "gsm8k_0", "correct": 1, "subject": "gsm8k"}
+{"model_id": "EleutherAI/pythia-14m", "item_id": "gsm8k_1", "correct": 0, "subject": "gsm8k"}
+{"model_id": "EleutherAI/pythia-14m", "item_id": "mmlu_high_school_biology_0", "correct": 1, "subject": "high_school_biology"}
+{"model_id": "EleutherAI/pythia-14m", "item_id": "mmlu_high_school_biology_1", "correct": 0, "subject": "high_school_biology"}
+{"model_id": "Qwen__Qwen2-0.5B", "item_id": "gsm8k_0", "correct": 0, "subject": "gsm8k"}
+{"model_id": "Qwen__Qwen2-0.5B", "item_id": "gsm8k_1", "correct": 1, "subject": "gsm8k"}
+{"model_id": "Qwen__Qwen2-0.5B", "item_id": "mmlu_high_school_biology_0", "correct": 1, "subject": "high_school_biology"}
+{"model_id": "Qwen__Qwen2-0.5B", "item_id": "mmlu_high_school_biology_1", "correct": 1, "subject": "high_school_biology"}
