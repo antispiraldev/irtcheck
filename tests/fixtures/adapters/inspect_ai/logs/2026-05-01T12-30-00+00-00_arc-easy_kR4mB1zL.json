@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "kR4mB1zLsV6tYn0e",
+    "created": "2026-05-01T12:30:00+00:00",
+    "task": "arc_easy",
+    "task_id": "N8pQr2XyZ",
+    "task_version": 0,
+    "task_file": "arc.py",
+    "dataset": {"name": "arc_easy", "samples": 3, "sample_ids": ["Mercury_7175875", "Mercury_SC_405487", "MCAS_2000_4_6"]},
+    "model": "anthropic/claude-haiku-4-5",
+    "config": {"epochs": 1}
+  },
+  "plan": {"name": "plan", "steps": [{"solver": "multiple_choice", "params": {}}]},
+  "results": {
+    "total_samples": 3,
+    "completed_samples": 3,
+    "scores": [{"name": "choice", "scorer": "choice", "metrics": {"accuracy": {"name": "accuracy", "value": 0.3333333333333333}}}]
+  },
+  "stats": {"started_at": "2026-05-01T12:30:00+00:00", "completed_at": "2026-05-01T12:30:05+00:00", "model_usage": {}},
+  "samples": [
+    {
+      "id": "Mercury_7175875",
+      "epoch": 1,
+      "input": "Which technology was developed most recently?",
+      "choices": ["cellular telephone", "television", "refrigerator", "airplane"],
+      "target": "A",
+      "messages": [],
+      "output": {"model": "claude-haiku-4-5", "choices": [{"message": {"role": "assistant", "content": "ANSWER: B"}}]},
+      "scores": {"choice": {"value": "I", "answer": "B", "explanation": "ANSWER: B"}},
+      "metadata": {}
+    },
+    {
+      "id": "Mercury_SC_405487",
+      "epoch": 1,
+      "input": "A pond is home to many organisms. Which organism produces its own food?",
+      "choices": ["algae", "crayfish", "minnow", "tadpole"],
+      "target": "A",
+      "messages": [],
+      "output": {"model": "claude-haiku-4-5", "choices": [{"message": {"role": "assistant", "content": "ANSWER: A"}}]},
+      "scores": {"choice": {"value": "C", "answer": "A", "explanation": "ANSWER: A"}},
+      "metadata": {}
+    },
+    {
+      "id": "MCAS_2000_4_6",
+      "epoch": 1,
+      "input": "Which of these is the best conductor of electricity?",
+      "choices": ["copper wire", "glass rod", "rubber band", "wooden spoon"],
+      "target": "A",
+      "messages": [],
+      "output": {"model": "claude-haiku-4-5", "choices": [{"message": {"role": "assistant", "content": "I don't know."}}]},
+      "scores": {"choice": {"value": "N", "answer": null, "explanation": "no answer given"}},
+      "metadata": {}
+    }
+  ]
+}

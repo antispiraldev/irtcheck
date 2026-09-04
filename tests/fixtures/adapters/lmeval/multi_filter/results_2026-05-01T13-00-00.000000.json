@@ -1,0 +1,17 @@
+{
+  "results": {
+    "gsm8k": {
+      "alias": "gsm8k",
+      "exact_match,strict-match": 0.5,
+      "exact_match,flexible-extract": 1.0
+    }
+  },
+  "config": {
+    "model": "hf",
+    "model_args": "pretrained=tiny-arithmetic-1b",
+    "limit": 2
+  },
+  "model_source": "hf",
+  "model_name": "tiny-arithmetic-1b",
+  "model_name_sanitized": "tiny-arithmetic-1b"
+}

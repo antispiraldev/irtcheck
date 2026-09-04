@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "pC1",
+    "created": "2026-05-01T12:00:00+00:00",
+    "task": "rubric",
+    "dataset": {"name": "rubric", "samples": 2},
+    "model": "openai/gpt-4o-mini"
+  },
+  "samples": [
+    {"id": 1, "epoch": 1, "input": "q1", "target": "a", "scores": {"rubric": {"value": "P"}}, "metadata": {}},
+    {"id": 2, "epoch": 1, "input": "q2", "target": "a", "scores": {"rubric": {"value": 0.72}}, "metadata": {}}
+  ]
+}

@@ -1,0 +1,7 @@
+model_id,item_id,correct,subject,split,raw_score,prompt_variant
+claude-sonnet-4-5,mmlu_hs_bio_0412,1,biology,test,0.91,plain
+claude-sonnet-4-5,mmlu_hs_bio_0413,0,biology,test,0.12,plain
+claude-sonnet-4-5,mmlu_hs_bio_0414,1,biology,test,0.64,plain
+gpt-4o-mini,mmlu_hs_bio_0412,true,biology,test,0.77,plain
+gpt-4o-mini,mmlu_hs_bio_0413,0,biology,test,0.31,plain
+gpt-4o-mini,mmlu_hs_bio_0414,0,biology,test,0.08,plain

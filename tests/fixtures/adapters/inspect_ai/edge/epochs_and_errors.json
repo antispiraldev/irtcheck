@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "eE1",
+    "created": "2026-05-01T12:00:00+00:00",
+    "task": "repeats",
+    "dataset": {"name": "repeats", "samples": 2},
+    "model": "openai/gpt-4o-mini",
+    "config": {"epochs": 2}
+  },
+  "samples": [
+    {"id": 1, "epoch": 1, "input": "q1", "target": "a", "scores": {"match": {"value": "C"}}, "metadata": {}},
+    {"id": 1, "epoch": 2, "input": "q1", "target": "a", "scores": {"match": {"value": "I"}}, "metadata": {}},
+    {"id": 2, "epoch": 1, "input": "q2", "target": "a", "scores": {"match": {"value": "C"}}, "metadata": {}},
+    {"id": 2, "epoch": 2, "input": "q2", "target": "a", "scores": null, "error": {"message": "connection reset"}, "metadata": {}}
+  ]
+}

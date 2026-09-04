@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "tS1",
+    "created": "2026-05-01T12:00:00+00:00",
+    "task": "two_scorers",
+    "dataset": {"name": "two_scorers", "samples": 1},
+    "model": "openai/gpt-4o-mini"
+  },
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": "q1",
+      "target": "a",
+      "scores": {
+        "match": {"value": "C"},
+        "model_graded_qa": {"value": "I", "explanation": "the grader disagreed"}
+      },
+      "metadata": {}
+    }
+  ]
+}
