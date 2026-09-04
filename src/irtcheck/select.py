@@ -140,7 +140,7 @@ class AnchorSet:
     theta_se: list[float]  # posterior sd of theta under that information
     objective: str
     requested: int
-    n_usable: int
+    n_usable: int  # candidates after flags *and* after dropping zero-response items
     n_items: int
 
     @property
@@ -188,7 +188,20 @@ def select_anchor(
     zero by definition — which is a nice property to have fall out rather than
     to special-case.
 
-    Fewer than `n` items come back when fewer than `n` are usable. That is
+    **Items with no responses in this fit are excluded here, not inherited from
+    flag semantics.** An item nobody answered carries no information about these
+    respondents by construction, whatever its posterior happens to say. Today a
+    zero-response item also lands as `floor` — `p_correct` comes through as 0.0
+    — so the flag path happens to exclude it too, but that is a bug being fixed
+    rather than a guarantee: "everyone got it wrong" is not a claim anyone can
+    make about an item nobody answered. Once it is fixed the only thing keeping
+    such an item out of an anchor set would be its `a` interval spanning zero,
+    which is a property of a real fit and not of every fit. Leave-one-model-out
+    manufactures this case routinely: a ragged matrix where only the held-out
+    model answered an item leaves that item with zero responses in the held-out
+    fit that then chooses the anchor set.
+
+    Fewer than `n` items come back when fewer than `n` are eligible. That is
     reported, not padded: filling an anchor set with items we said we could not
     read would undo the refusal that makes the rest of the tool honest.
     """
@@ -201,7 +214,19 @@ def select_anchor(
     bad = [i for i in pool if not 0 <= i < fit.n_items]
     if bad:
         raise SelectError(f"candidate item index out of range: {bad[:3]}")
+
+    answered = [i for i in pool if fit.n_resp[i] > 0]
+    unanswered = len(pool) - len(answered)
+    pool = answered
+
     if not pool:
+        if unanswered:
+            raise SelectError(
+                f"none of the {unanswered} candidate item(s) have a single response in "
+                "this fit, so there is nothing to select from. An item nobody answered "
+                "carries no information about these respondents whatever its posterior "
+                "says."
+            )
         raise SelectError(
             "no items are eligible for selection — every item is flagged "
             "insufficient-data, ceiling or floor. With this many respondents most "

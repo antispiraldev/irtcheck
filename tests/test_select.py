@@ -175,6 +175,81 @@ def test_no_eligible_items_points_at_respondent_count():
         select_anchor(fit, 5)
 
 
+# -- items nobody answered ---------------------------------------------------
+
+
+def _make_irresistible(fit, index: int, *, n_resp: int) -> None:
+    """Give one item a posterior good enough to be selected, and `n_resp` responses.
+
+    Discrimination well above the suite, difficulty in the middle of the ability
+    range, and a tight interval far from zero — so nothing about the posterior
+    excludes it and the information ranking wants it. Whether it belongs in an
+    anchor set then turns entirely on whether anybody answered it.
+    """
+    theta = float(np.mean(fit.theta.mean))
+    fit.a.mean[index], fit.a.sd[index] = 2.0, 0.01
+    fit.a.hdi_low[index], fit.a.hdi_high[index] = 1.9, 2.1
+    fit.b.mean[index], fit.b.sd[index] = theta, 0.01
+    fit.b.hdi_low[index], fit.b.hdi_high[index] = theta - 0.05, theta + 0.05
+    fit.n_resp[index] = n_resp
+    fit.p_correct[index] = 0.5  # what the flag fix will leave behind: no claim
+    fit.flags[index] = []
+    fit.validate()
+
+
+def test_an_item_nobody_answered_is_never_selected():
+    """Leave-one-model-out manufactures this: a ragged matrix where only the
+    held-out model answered an item leaves it with zero responses in the fit
+    that then picks the anchor set.
+
+    The exclusion must not be inherited from flag semantics. Today such an item
+    also lands as `floor` because p_correct comes through as 0.0, but that is a
+    bug being fixed — "everyone got it wrong" is not a claim about an item
+    nobody answered — and after the fix the flag path would not catch it. So
+    this is an A/B on the response count alone: same posterior, same flags, same
+    everything, one response versus none.
+    """
+    fit, _ = synthetic_fit(n_models=8, n_items=120, seed=19)
+    ghost = fit.usable_items()[0]
+
+    _make_irresistible(fit, ghost, n_resp=1)
+    assert ghost in select_anchor(fit, 10).item_indices, "the fixture must be selectable"
+
+    _make_irresistible(fit, ghost, n_resp=0)
+    # Nothing in the flag path is doing the work here.
+    assert ghost in fit.usable_items()
+    assert not set(fit.flags[ghost]).intersection(
+        {FLAG_INSUFFICIENT_DATA, FLAG_CEILING, FLAG_FLOOR}
+    )
+    # It still tops the information ranking; it is simply not about anyone.
+    theta, weights = ability_distribution(fit)
+    score = item_information(fit.a.mean, fit.b.mean, theta) @ weights
+    assert score[ghost] > np.median(score)
+
+    anchor = select_anchor(fit, 10)
+    assert ghost not in anchor.item_indices
+    assert anchor.n_usable == len(fit.usable_items()) - 1
+
+
+def test_a_zero_response_item_is_excluded_even_when_named_explicitly():
+    """Not a filter the caller can opt out of by passing candidates directly."""
+    fit, _ = synthetic_fit(n_models=6, n_items=60, seed=20)
+    ghost = fit.usable_items()[0]
+    _make_irresistible(fit, ghost, n_resp=0)
+    others = [i for i in fit.usable_items() if i != ghost][:5]
+
+    anchor = select_anchor(fit, 6, candidates=[ghost, *others])
+    assert ghost not in anchor.item_indices
+    assert anchor.n_selected == 5
+
+
+def test_a_fit_where_nothing_was_answered_says_so():
+    fit, _ = synthetic_fit(n_models=4, n_items=30, seed=21)
+    fit.n_resp = [0] * fit.n_items
+    with pytest.raises(SelectError, match="not have a single response|single response"):
+        select_anchor(fit, 5)
+
+
 # -- the two objectives ------------------------------------------------------
 
 
