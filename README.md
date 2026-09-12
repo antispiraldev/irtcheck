@@ -28,15 +28,19 @@ pip install irtcheck
 ```
 
 Python 3.11, 3.12 and 3.13. `torch` and `pyro-ppl` come with it because
-`irtcheck fit` needs them — but they are imported lazily, so `report` and
-`select` run on a machine that has never installed torch, given a `.irt` file
-from one that has. (`validate` refits, so it does need them.) If you only ever
-analyse fits someone else produced:
+`irtcheck fit` needs them — but they are imported lazily, so `report`
+(including `--html`) and `select` run on a machine that has never installed
+torch, given a `.irt` file from one that has. (`validate` refits, so it does
+need them.) If you only ever analyse fits someone else produced:
 
 ```
-pip install typer rich numpy scipy matplotlib
+pip install typer rich numpy scipy
 pip install irtcheck --no-deps
 ```
+
+That is genuinely enough: the HTML report's plot is hand-built SVG, so nothing
+in the analysis path imports matplotlib either, despite it being a declared
+dependency.
 
 ## Quickstart
 
@@ -67,6 +71,9 @@ insufficient-data  256 (42.7%)  cannot tell — a interval spans zero; excluded 
   item_00518  2.27   [0.94, 3.61]  -0.09  [-0.61, 0.43]  20        0.50
   item_00165  2.16   [0.85, 3.48]  -0.26  [-0.84, 0.31]  20        0.55
   ...
+
+$ irtcheck report suite.irt --html suite.html
+wrote suite.html          # self-contained, no external assets; the information curve is in here
 
 $ irtcheck select suite.irt -n 50 -o anchor.json
 50 of 306 usable items (600 total) · 10 models (20 respondents, key model_id+prompt_variant)
@@ -316,7 +323,7 @@ what the model says about `a`:
 | ----------- | ---------------------------------------------------------------------- |
 | `ceiling`   | `p(correct) ≥ 0.99` — everyone gets it right                           |
 | `floor`     | `p(correct) ≤ 0.01` — everyone gets it wrong                           |
-| `off-range` | difficulty well outside the ability range your respondents occupy. The item may discriminate beautifully, just not for anyone in this matrix — which is the finding the test information curve exists to make visible. |
+| `off-range` | difficulty well outside the ability range your respondents occupy. The item may discriminate beautifully, just not for anyone in this matrix — which is the finding `report --html` draws the test information curve to make visible. |
 
 ---
 
@@ -384,7 +391,7 @@ suite.irt` works with one argument. `--no-embed-responses` opts out and
 
 ```
 irtcheck report suite.irt
-    --html out.html          a self-contained HTML report — NOT IMPLEMENTED YET
+    --html out.html          also write a self-contained HTML report
     --json                   machine-readable instead of a table
     --sort discrimination|difficulty|id
     --limit 40               0 for all items
@@ -395,13 +402,20 @@ counts real models, items, usable items, and every flag separately. The
 `--json` payload is generated from the same column list as the table, so a
 column the table shows and the JSON omits is not expressible.
 
-`--html` **is not implemented yet.** It is declared, and it exits with an error
-saying so rather than writing a file that is not the report the flag promises.
-When it lands it writes one self-contained file with no external assets, whose
-centrepiece is the test information curve plotted against the ability
-distribution of the respondents in your matrix — the plot that shows, at a
-glance, a suite measuring precisely in an ability range none of your models
-occupy. The terminal report and `--json` are complete.
+`--html` writes **one self-contained file with no external assets** — no CDN,
+no fonts, no image requests, so it survives being emailed or dropped in a
+bucket. About 86 KB for a 600-item fit.
+
+Its centrepiece is the **test information curve plotted against the ability
+distribution of the respondents in your matrix**, as inline SVG. That is the
+plot that shows at a glance when a suite measures precisely in an ability range
+none of your models occupy, and it states the finding in words as well as
+drawing it. The page's own subtitle, on the quickstart fit above, reads:
+
+```
+Test information peaks at theta +0.24; the respondents span -1.52 to +1.94
+and receive 85% of that peak.
+```
 
 ### `select`
 
