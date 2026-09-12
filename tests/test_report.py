@@ -473,10 +473,13 @@ def test_any_long_diagnostics_value_is_summarised_not_just_the_elbo_trace(thin):
     fit = IrtFit.load(thin.save(_tmp_path_for(thin)))
     fit.diagnostics["some_future_trace"] = list(range(5000))
     fit.diagnostics["nested"] = {"scalar": 1, "trace": list(range(5000))}
+    fit.diagnostics["nested"]["text"] = "kept"
     summary = summarise_diagnostics(fit.diagnostics)
     assert summary["some_future_trace_points"] == 5000
     assert "some_future_trace" not in summary
-    assert summary["nested"] == {"scalar": 1}
+    # `str` is a Sequence, so a nested string is the case most likely to be
+    # dropped by accident by the very filter that stops the flood.
+    assert summary["nested"] == {"scalar": 1, "text": "kept"}
 
 
 def test_the_dead_threshold_advice_states_the_measured_respondent_count(thin):

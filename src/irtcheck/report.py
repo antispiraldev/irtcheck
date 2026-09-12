@@ -715,8 +715,13 @@ def summarise_diagnostics(diagnostics: dict[str, Any]) -> dict[str, Any]:
             # and where it got to, without carrying the trace.
             out[f"{key}_points"] = len(value)
         elif isinstance(value, Mapping):
+            # `str` is a Sequence, so the test has to let strings through
+            # explicitly or a nested text value disappears without a trace --
+            # which is the same silent-drop this function exists to stop.
             out[key] = {
-                k: v for k, v in value.items() if not isinstance(v, Sequence | Mapping)
+                k: v
+                for k, v in value.items()
+                if isinstance(v, str) or not isinstance(v, Sequence | Mapping)
             }
         else:
             out[key] = value
