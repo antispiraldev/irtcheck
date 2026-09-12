@@ -93,8 +93,18 @@ its error there is not width but scale: `theta ~ N(0, 1)` is a fixed ruler, the
 15 true abilities have a sample sd of 0.82 rather than 1.0, and the fit stretches
 every ability by the difference. The error is a shared factor, not noise —
 regressing truth on the estimate gives a slope of 0.85 — so no width would cover
-it. It also does not touch anything the tool claims: `validate` compares
-*rankings*, which that factor leaves alone.
+it.
+
+Two things keep that from being a live misstatement, and both are worth knowing
+before anyone "fixes" it. Nothing displays `theta.sd` or `theta.hdi_*`: grep
+the package and the only reads are here. The ability standard errors that
+`select` and the HTML report *do* show are computed from test information,
+`1/sqrt(1 + I(theta))`, which is the same Fisher-information reasoning applied
+above to the items. And every claim `validate` makes is a **rank** correlation,
+which a shared scale factor leaves alone. So the variational interval on theta
+is carried in the artifact, is honest about nothing, and is read by no one —
+which is an argument for computing it properly or dropping it, not for leaving
+it undocumented.
 """
 
 from __future__ import annotations

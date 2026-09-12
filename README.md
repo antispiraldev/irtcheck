@@ -55,40 +55,63 @@ Then:
 ```console
 $ irtcheck fit responses.jsonl --respondent-key model_id,prompt_variant -o suite.irt
 20 respondents (10 real models, key model_id+prompt_variant), 600 items, 12,000 responses (100% of the grid)
-wrote suite.irt (71 KiB) in 9.7s — ELBO -7,389.7 over 2,000 epochs, seed 0
-  256 insufficient-data · 3 dead · 22 ceiling · 16 floor
+wrote suite.irt (70 KiB) in 11.3s — ELBO -7,544.9 over 2,000 epochs, seed 0
+  429 insufficient-data · 1 dead · 23 ceiling · 17 floor
+note: 429 of 600 items have a discrimination interval spanning zero — with this
+many respondents the data cannot tell whether they separate anyone. They are
+excluded from ranking and selection. More respondents is the fix.
 next: irtcheck report suite.irt
 
 $ irtcheck report suite.irt --limit 8
+╭──────────────────────── cannot rank these items yet ─────────────────────────╮
+│  Not enough respondents to rank these items: 429 of 600 items (72%) are      │
+│  insufficient-data.                                                          │
+│                                                                              │
+│  Their discrimination interval spans zero, so this fit cannot tell whether   │
+│  they separate stronger models from weaker ones. That is a statement about   │
+│  the data supplied, not a verdict on the items.                              │
+│                                                                              │
+│  Separately, 1 item is flagged dead: there the fit is confident the item     │
+│  does not discriminate. That is a finding about the suite.                   │
+│                                                                              │
+│  Cheapest next step — raise respondent count without running new models.     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
       respondents  10 real models → 20 respondents (2.0 per model, --respondent-key model_id,prompt_variant)
-            items  600 items  (306 usable for ranking and selection)
-             dead  3 (0.5%)  confidently do not discriminate (a interval entirely below 0.35)
-insufficient-data  256 (42.7%)  cannot tell — a interval spans zero; excluded from ranking and selection
-  ceiling / floor  ceiling 22 (3.7%, p ≥ 0.99)   floor 16 (2.7%, p ≤ 0.01)
+            items  600 items  (131 usable for ranking and selection)
+             dead  1 (0.2%)  confidently do not discriminate (a interval entirely below 0.35)
+insufficient-data  429 (71.5%)  cannot tell — a interval spans zero; excluded from ranking and selection
+  ceiling / floor  ceiling 23 (3.8%, p ≥ 0.99)   floor 17 (2.8%, p ≤ 0.01)
         off-range  0 (0.0%)  difficulty outside the ability range these respondents occupy
 
-  item          a     a 95% HDI      b      b 95% HDI    n   p(correct)  flags
-  item_00518  2.27   [0.94, 3.61]  -0.09  [-0.61, 0.43]  20        0.50
-  item_00165  2.16   [0.85, 3.48]  -0.26  [-0.84, 0.31]  20        0.55
+  item          a     a 95% HDI      b       b 95% HDI     n   p(correct)  flags
+  item_00318  1.88   [0.56, 3.19]  -0.81  [-1.49, -0.14]  20        0.75
+  item_00165  1.84   [0.49, 3.19]  -1.06  [-1.80, -0.31]  20        0.80
   ...
 
 $ irtcheck report suite.irt --html suite.html
 wrote suite.html          # self-contained, no external assets; the information curve is in here
 
 $ irtcheck select suite.irt -n 50 -o anchor.json
-50 of 306 usable items (600 total) · 10 models (20 respondents, key model_id+prompt_variant)
-Mean ability standard error over these models: 0.220 (1.000 with no items at all).
-Marginal gain: first item 0.6285, last item 0.3553. Where that flattens is where n stops buying precision.
+50 of 131 usable items (600 total) · 10 models (20 respondents, key model_id+prompt_variant)
+Mean ability standard error over these models: 0.234 (1.000 with no items at all).
+Marginal gain: first item 0.5491, last item 0.2883. Where that flattens is where n stops buying precision.
 
 $ irtcheck validate suite.irt
 Leave-one-model-out · 10 models · 600 items · 20 respondents (key model_id+prompt_variant)
-    n  items  Spearman  Kendall tau
-   25     25    +0.994       +0.978
-   50     50    +0.988       +0.956
-  100    100    +1.000       +1.000
-  200    200    +1.000       +1.000
-  400    252*   +1.000       +1.000
+    n  items  Spearman  Kendall tau  Spearman (theta)  tau (theta)
+   25     25    +0.921       +0.796            +0.927       +0.822
+   50     50    +0.964       +0.911            +0.964       +0.911
+  100     74*   +0.976       +0.911            +0.952       +0.867
+  200     74*   +0.964       +0.911            +0.952       +0.867
+  400     74*   +0.964       +0.911            +0.952       +0.867
 ```
+
+**Ten models is below where this tool can rank items, and it says so.** That is
+the quickstart on purpose: 72% of the suite comes back "cannot tell", `report`
+leads with a refusal instead of a table, and the 131 items that survive still
+recover the full-suite ranking to +0.92 from 25 of them. A tool that printed a
+confident table here would be making most of it up.
 
 That last table is the headline: a 25-item subset, chosen by a fit that never
 saw the model it was then used to rank, put ten models in almost exactly their
@@ -304,10 +327,22 @@ that claims both about anything.
 
 **At five to fifteen respondents, most low-information items land in
 `insufficient-data` and `dead` is rare.** In the quickstart above, 20
-respondents gave 256 insufficient-data and 3 dead out of 600 items. That is not
-a bad run. Reaching `dead` needs an interval narrow enough to sit *wholly*
-below the threshold, and that takes on the order of a hundred respondents. A
-report that summed the two into "bad items: 259" would erase exactly the
+respondents gave 429 insufficient-data and 1 dead out of 600 items. That is not
+a bad run — it is the only honest reading of twenty responses per item.
+
+`dead` is rare for a reason worth stating exactly, because the obvious guess is
+wrong. It needs the interval on `a` to sit *wholly inside* `(0, 0.35)`: it has
+to clear zero as well as the threshold, or the item is `insufficient-data`
+instead. That caps the standard error at `0.35 / (2 × 1.96) = 0.089`, which is a
+great deal of evidence about one item. Measured against synthetic ground truth,
+no item reaches `dead` at 300 respondents and eighteen of 200 do at 1,000 — so
+it takes on the order of a *thousand* respondents, not a hundred. Below that,
+the handful of items that do reach it get there by a second route: an interval
+lying wholly *below* zero, which is an item weaker models get right more often.
+When `dead` does fire it is reliable — 27 of 29 items flagged across six
+synthetic fits really do have a true `a` below the threshold.
+
+A report that summed the two into "bad items: 430" would erase exactly the
 distinction that matters, and would make the honest small-N answer look like a
 broken fit.
 
@@ -521,19 +556,24 @@ HELM publishes its full benchmark output, per instance, to an open Google Cloud
 Storage bucket. Eighteen HELM Lite scenarios across every published version give
 **95 models × 3,551 items, 323,656 real graded responses**, every item answered
 by at least 87 of the 95 models. Cut to a realistic shortlist — twelve models
-spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 29 s and the
-flag distribution lands almost exactly where the synthetic matrix does at
-comparable respondent count:
+spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 29 s:
 
 |                     | 12 real models × 3,551 items | synthetic, 20 respondents × 600 items |
 | ------------------- | ---------------------------- | ------------------------------------- |
-| usable for ranking  | 1,664 (46.9%)                | 306 (51.0%)                           |
-| `insufficient-data` | 1,602 (45.1%)                | 256 (42.7%)                           |
-| `dead`              | 29 (0.8%)                    | 3 (0.5%)                              |
-| `ceiling` / `floor` | 3.8% / 4.3%                  | 3.7% / 2.7%                           |
+| usable for ranking  | 1,664 (46.9%)                | 131 (21.8%)                           |
+| `insufficient-data` | 1,602 (45.1%)                | 429 (71.5%)                           |
+| `dead`              | 29 (0.8%)                    | 1 (0.2%)                              |
+| `ceiling` / `floor` | 3.8% / 4.3%                  | 3.8% / 2.8%                           |
 
-So the small-N behaviour this README describes is not an artefact of how
-`synth.py` draws parameters — it is what real model responses do too.
+**The two columns were measured with different interval methods and are not
+comparable.** The real-data column is from the original run; the synthetic one
+is current. Between them, the reported interval on the item parameters moved off
+the variational marginals — which were measurably too narrow — onto the
+conditional information matrix, and every `insufficient-data` count rose as a
+result. The real fit has not been re-run, so the correspondence this table used
+to claim is **withdrawn until it is**; see
+[`docs/validation.md`](docs/validation.md) §2f. What the ceiling and floor rates
+show still holds, because those flags read observed rates rather than intervals.
 
 And grouping the output by scenario produces the kind of finding the tool was
 written for, which synthetic data could not have produced:
@@ -601,10 +641,31 @@ the places where it disagrees, and the commands to reproduce all of it are in
 
 ### What we have not done
 
-- **No cross-check against `mirt` or `py-irt` yet.** Comparing our Pyro 2PL
-  against established implementations is a planned exercise (`crosscheck/`, on a
-  3.11 venv, not shipped) and is not finished. Nothing here should be read as
-  "agrees with mirt".
+- **The cross-check against `mirt` and `py-irt` is done, and it found a real
+  bug.** Both references ran — R 4.3.3 with `mirt` 1.41, and `py-irt` 0.7.1 on
+  CPython 3.11 — in `crosscheck/` (not shipped; it needs toolchains the package
+  does not). On a dense 300 × 60 matrix our point estimates agree with `mirt` at
+  **Spearman 0.949 on discrimination and 0.9991 on difficulty**, mean absolute
+  difference in predicted probability 0.0092. `mirt` and an independently
+  written scipy marginal-ML agree with each other at logLik −9431.926306 to six
+  decimal places, which is what makes the reference trustworthy rather than just
+  present. Two things it found: our reported intervals were about half the width
+  they should be (now fixed — see below), and at twelve respondents unpenalised
+  ML has no interior maximum at all, which is the empirical case for the
+  hierarchical priors. Note `mirt` does **not** constrain `a > 0`, so it is the
+  reference whose identification convention matches ours.
+- **The reported interval on `a` and `b` is not the guide's.** Mean-field SVI
+  understates posterior correlations, so its marginals are too narrow — and for
+  this tool that is the dangerous direction, because `insufficient-data` fires
+  when the interval spans zero. Measured, the nominal 95% variational interval
+  covered the true `a` 80.6–87.5% of the time. The item intervals now come from
+  the conditional information matrix instead, which carries the `a`–`b`
+  correlation the guide drops: coverage 91.1–93.3%, still a little narrow. The
+  artifact's interval on `theta` is *still* the variational one and covers only
+  **64%** at fifteen respondents — but nothing displays it: the ability standard
+  errors `select` and the HTML report show are computed from test information,
+  and every `validate` number is a rank correlation. That error is scale rather
+  than width; `fit/intervals.py` explains why widening cannot fix it.
 - **No performance claims beyond three measurements.** `fit` took 9.7 s on 20
   respondents × 600 items, 29.3 s on 12 × 3,551, and 23.5 s on 95 × 3,551
   (323,656 responses) — all on CPU at the default 2,000 SVI steps. Those are

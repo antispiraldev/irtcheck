@@ -171,15 +171,42 @@ branches that were each green alone. It asserts:
   and it excludes the item from ranking and selection rather than ranking it
   anyway. `IrtFit.validate()` rejects an item carrying both.
   At five to fifteen respondents **most low-information items land in
-  `insufficient-data`, and `dead` is rare** — reaching it needs an interval
-  narrow enough to sit wholly under the threshold, which needs roughly a
-  hundred respondents. That is the honest answer, and saying so is the product.
+  `insufficient-data`, and `dead` is rare** — and rarer than this file used to
+  claim. `dead` needs the interval wholly inside `(0, DEAD_THRESHOLD)`: it has
+  to clear zero as well as the threshold, or the item is `insufficient-data`
+  instead. That caps `sd(a)` at `0.35 / (2 × 1.96) = 0.089`. Measured against
+  synthetic ground truth, **no item reaches `dead` at 300 respondents and
+  eighteen of 200 do at 1,000** — so it is a thousand respondents, not the
+  hundred stated here through waves 0-2. Below that, the few items that do reach
+  it get there via an interval lying wholly *below* zero, an item weaker models
+  get right more often. When it fires it is reliable: 27 of 29 items flagged
+  across six synthetic fits really do have a true `a` under the threshold.
+  That is the honest answer, and saying so is the product.
 - **`derives_from` is load-bearing.** Every respondent records the real model
   it came from. Leave-one-model-out must hold out *every pseudo-respondent
   derived from a model*, not one row: drop one and that model's other prompt
   variants leak its answers into the fit that chooses the anchor set, and the
   headline rank correlation comes out inflated with nothing to catch it.
   `ResponseMatrix.drop_model()` is the only correct way to do it.
+- **The reported interval on `a` and `b` is not the guide's marginal, and the
+  distinction is load-bearing.** `insufficient-data` fires when the interval on
+  `a_i` spans zero, so the width *is* the claim. Mean-field SVI makes each
+  marginal variance the conditional `1/precision_ii` rather than the marginal
+  `Sigma_ii`, which for a 2PL is badly too narrow because `a_i` and `b_i` enter
+  the likelihood only through `a_i (theta_j - b_i)` — and too narrow is the
+  direction that makes the tool refuse too little. Measured coverage of the
+  variational interval was 80.6-87.5% against a nominal 95%. The item intervals
+  therefore come from the 2x2 expected information of `(a_i, b_i)` conditional
+  on `theta_hat`; coverage 91.1-93.3%. The point estimates are still
+  variational. See `src/irtcheck/fit/intervals.py` for the derivation and
+  `tests/test_intervals.py`, which measures it in CI — the claim went unchecked
+  and inverted in a docstring for three waves, which is why it is now a test.
+  **`theta`'s interval is still the variational one and covers only 64% at
+  fifteen respondents** — scale error, not width, so widening cannot fix it. It
+  is not a live misstatement only because nothing reads it: the ability standard
+  errors `select` and the HTML show come from test information, and `validate`
+  compares ranks. Compute it properly or drop the field; do not leave a third
+  agent to rediscover this.
 - **Never coerce a continuous score to binary silently.** `coerce_correct`
   refuses `0.87`. Thresholding a `raw_score` is a documented escape hatch that
   has to print its threshold in the report header, not a quiet cast.
@@ -190,7 +217,13 @@ branches that were each green alone. It asserts:
 - The fit artifact carries its own responses, so `irtcheck validate suite.irt`
   works with one argument. `--no-embed-responses` opts out and `validate` then
   explains what is missing.
-- No `Co-Authored-By` lines in commits.
+- **No `Co-Authored-By` lines in commits.** This rule stands, and the history
+  does not match it: 21 such trailers are already in `master`, in two different
+  spellings, because the wave briefs asked for them and the briefs were wrong.
+  Two agents noticed the contradiction independently and resolved it in opposite
+  directions. It is not worth rewriting merged history over, so the trailers
+  stay where they are and new commits do without. If you would rather have them,
+  change this line — but do not leave the two disagreeing again.
 
 ## Testing a stochastic fit
 
@@ -212,7 +245,15 @@ list on the last line and returns without it. Its pins (`typer<0.15`,
 `rich<14`) would also become ours.
 
 So the 2PL is ours, written directly in Pyro, and py-irt appears only in
-`crosscheck/` — a wave-2, not-shipped comparison run on a 3.11 venv alongside
-R's `mirt`. Watch for sign and scale convention differences between packages
-when reading those results; the identification choice is recorded in the
-artifact's `model.identification` field for exactly that reason.
+`crosscheck/` — a not-shipped comparison on a 3.11 venv alongside R's `mirt`.
+**That comparison has been run.** Against `mirt` 1.41 on a dense 300 x 60
+matrix: Spearman 0.949 on `a`, 0.9991 on `b`, mean `|dP|` 0.0092, with `mirt`
+and an independent scipy marginal-ML agreeing at logLik -9431.926306 both ways.
+The convention differences are real and were reconciled explicitly rather than
+assumed — `b = -d/a1` against `mirt`'s own `IRTpars`, and py-irt's `export()`
+identified as a LogNormal *median* rather than a mean. **`mirt` does not
+constrain `a > 0`** (2 of 59 slopes negative on dense, 22 of 183 on sparse), so
+`mirt` and not py-irt is the reference matching our identification convention;
+it is recorded in the artifact's `model.identification` field for that reason.
+The comparison found a real bug — see the interval convention above, and
+`docs/validation.md` section 2f.
