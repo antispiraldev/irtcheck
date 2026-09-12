@@ -201,12 +201,15 @@ branches that were each green alone. It asserts:
   variational. See `src/irtcheck/fit/intervals.py` for the derivation and
   `tests/test_intervals.py`, which measures it in CI — the claim went unchecked
   and inverted in a docstring for three waves, which is why it is now a test.
-  **`theta`'s interval is still the variational one and covers only 64% at
-  fifteen respondents** — scale error, not width, so widening cannot fix it. It
-  is not a live misstatement only because nothing reads it: the ability standard
-  errors `select` and the HTML show come from test information, and `validate`
-  compares ranks. Compute it properly or drop the field; do not leave a third
-  agent to rediscover this.
+  **`theta` needed a different correction and got one.** Its error was not
+  width but *scale*: `theta ~ N(0, 1)` is a fixed ruler, a fit standardises to
+  its own sample, and `n` draws from `N(0, 1)` have a sample sd that is not 1 —
+  so every ability came out stretched by a shared factor that no per-respondent
+  width covers. The variational interval covered 64.4% at fifteen respondents
+  and information alone covered 64.4% too; adding the ruler's own uncertainty,
+  `1/sqrt(2(n-1))` in quadrature and proportional to `|theta_j|`, reaches 88.9%.
+  It vanishes as respondents are added, which is why all three methods agree at
+  300.
 - **Never coerce a continuous score to binary silently.** `coerce_correct`
   refuses `0.87`. Thresholding a `raw_score` is a documented escape hatch that
   has to print its threshold in the report header, not a quiet cast.

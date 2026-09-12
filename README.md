@@ -119,7 +119,7 @@ full-suite order.
 
 > **Those numbers are from synthetic data, and the real ones are much weaker.**
 > On a real 12-model × 3,551-item matrix the same command gives Spearman
-> **+0.662 at n=25** and **+0.867 at n=400** — not +0.994 and +1.000. The
+> **+0.691 at n=25** and **+0.890 at n=400** — not +0.921 and +0.976. The
 > synthetic table checks that the code is correct; it is not evidence that
 > twenty-five items are enough for your suite. Read
 > [Does it actually work?](#does-it-actually-work) before quoting either.
@@ -554,33 +554,34 @@ README could contain, which is why it is labelled twice.
 
 HELM publishes its full benchmark output, per instance, to an open Google Cloud
 Storage bucket. Eighteen HELM Lite scenarios across every published version give
-**95 models × 3,551 items, 323,656 real graded responses**, every item answered
-by at least 87 of the 95 models. Cut to a realistic shortlist — twelve models
-spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 29 s:
+**95 models × 3,551 items, 336,375 real graded responses**, every item answered
+by at least 93 of the 95 models. Cut to a realistic shortlist — twelve models
+spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 13 s:
 
 |                     | 12 real models × 3,551 items | synthetic, 20 respondents × 600 items |
 | ------------------- | ---------------------------- | ------------------------------------- |
-| usable for ranking  | 1,664 (46.9%)                | 131 (21.8%)                           |
-| `insufficient-data` | 1,602 (45.1%)                | 429 (71.5%)                           |
-| `dead`              | 29 (0.8%)                    | 1 (0.2%)                              |
+| usable for ranking  | 568 (16.0%)                  | 131 (21.8%)                           |
+| `insufficient-data` | 2,980 (83.9%)                | 429 (71.5%)                           |
+| `dead`              | 3 (0.08%)                    | 1 (0.2%)                              |
 | `ceiling` / `floor` | 3.8% / 4.3%                  | 3.8% / 2.8%                           |
 
-**The two columns were measured with different interval methods and are not
-comparable.** The real-data column is from the original run; the synthetic one
-is current. Between them, the reported interval on the item parameters moved off
-the variational marginals — which were measurably too narrow — onto the
-conditional information matrix, and every `insufficient-data` count rose as a
-result. The real fit has not been re-run, so the correspondence this table used
-to claim is **withdrawn until it is**; see
-[`docs/validation.md`](docs/validation.md) §2f. What the ceiling and floor rates
-show still holds, because those flags read observed rates rather than intervals.
+**The small-N behaviour this README describes is not an artefact of how
+`synth.py` draws parameters** — it is what real model responses do too, with the
+real matrix somewhat harsher than the synthetic one at comparable respondent
+count. Both columns were re-measured after the interval fix below, from a matrix
+rebuilt with the scripts in [`scripts/`](scripts/). `ceiling` came out at 3.8%
+and `floor` at 4.3% before and after, to the decimal, which is the check that
+the rebuild is the same matrix: those two flags read observed rates rather than
+intervals, so they should not have moved.
 
 And grouping the output by scenario produces the kind of finding the tool was
 written for, which synthetic data could not have produced:
 `legalbench_international_citizenship_questions` is the **largest** scenario in
-that matrix (1,000 items, 28% of it) and the **weakest** — 72% of its items
-unrankable at twelve models, and the lowest mean discrimination of any scenario
-present. OpenBookQA is half the size and yields more usable items.
+that matrix (1,000 items, 28% of it) and the **weakest** — the lowest mean
+discrimination of any scenario present (0.54 against OpenBookQA's 2.15), and at
+twelve models only 7 of its 1,000 items are usable, against 229 of OpenBookQA's
+500. It also holds **26 of the 32 items the 95-model fit is confident
+discriminate backwards**, which nothing else in the matrix has any of.
 
 A second finding came out of the same run and is the best illustration of why
 per-item analysis is worth the trouble. On that scenario the median accuracy
@@ -595,17 +596,22 @@ exactly what an aggregate score discards.
 **And going from 12 to 95 respondents on the same 3,551 items confirms, on real
 data, the claim this tool's refusal behaviour rests on:**
 
-| items out of 3,551 | 12 models   | 95 models   |
-| ------------------ | ----------- | ----------- |
-| usable for ranking | 1,664 (47%) | 3,272 (92%) |
-| `insufficient-data`| 1,602 (45%) | 225 (6.3%)  |
-| `dead`             | 29 (0.8%)   | 94 (2.6%)   |
+| items out of 3,551 | 12 models     | 95 models     |
+| ------------------ | ------------- | ------------- |
+| usable for ranking | 568 (16.0%)   | 2,918 (82.2%) |
+| `insufficient-data`| 2,980 (83.9%) | 601 (16.9%)   |
+| `dead`             | 3 (0.08%)     | 32 (0.90%)    |
 
 Nothing about the items changed. The only thing that changed was how much
-evidence there was about each one. "We cannot tell" became "we can tell", and
-2.6% of the suite turned out to be genuinely dead weight — a claim that was
-simply not available at twelve models. That is `insufficient-data` being a
-statement about your data, demonstrated rather than asserted.
+evidence there was about each one. "We cannot tell" became "we can tell" for
+two thirds of the suite. That is `insufficient-data` being a statement about
+your data, demonstrated rather than asserted.
+
+The `dead` row turned out to say something other than what the flag claims, and
+it is worth knowing before you act on it: every one of those 32 items is
+`dead` because its interval on `a` lies wholly *below* zero, meaning weaker
+models get it right more often — not because it fails to discriminate.
+[`docs/validation.md`](docs/validation.md) §2e has the detail.
 
 ### On real data: the anchor-set claim is much weaker, and you should know that
 
@@ -614,15 +620,18 @@ This is the least flattering measurement here and the one most worth reading.
 
 | n   | items | Spearman | Kendall tau | synthetic Spearman |
 | --- | ----- | -------- | ----------- | ------------------ |
-| 25  | 25    | +0.662   | +0.504      | +0.994             |
-| 50  | 50    | +0.775   | +0.585      | +0.988             |
-| 100 | 100   | +0.629   | +0.455      | +1.000             |
-| 200 | 200   | +0.830   | +0.687      | +1.000             |
-| 400 | 400   | +0.867   | +0.727      | +1.000             |
+| 25  | 25    | +0.691   | +0.523      | +0.921             |
+| 50  | 50    | +0.755   | +0.545      | +0.964             |
+| 100 | 100   | +0.687   | +0.504      | +0.976             |
+| 200 | 200   | +0.855   | +0.657      | +0.964             |
+| 400 | 204\* | +0.890   | +0.748      | +0.964             |
 
-**On this real matrix a 25-item anchor set does not reproduce the ranking.** Four
-hundred items reach +0.867, which is useful; twenty-five do not, and the curve
-is not even monotone in n. Four candidate causes — a unidimensional 2PL fitted
+**On this real matrix a 25-item anchor set does not reproduce the ranking.** It
+takes a couple of hundred items to reach +0.89, which is useful; twenty-five do
+not, and the curve is not even monotone in n. The asterisk is worth a second
+look: n=400 could only supply **204** eligible items, and those 204 scored
++0.890 — better than the 400 items the previous, too-narrow intervals made
+eligible. Half the anchor set, a better ranking. Four candidate causes — a unidimensional 2PL fitted
 across maths, law and commonsense, twelve respondents being thin for a rank
 correlation, mislabelled responses, and multiple-choice guessing a 2PL has no
 parameter for — are laid out in [`docs/validation.md`](docs/validation.md) **as
@@ -660,19 +669,25 @@ the places where it disagrees, and the commands to reproduce all of it are in
   when the interval spans zero. Measured, the nominal 95% variational interval
   covered the true `a` 80.6–87.5% of the time. The item intervals now come from
   the conditional information matrix instead, which carries the `a`–`b`
-  correlation the guide drops: coverage 91.1–93.3%, still a little narrow. The
-  artifact's interval on `theta` is *still* the variational one and covers only
-  **64%** at fifteen respondents — but nothing displays it: the ability standard
-  errors `select` and the HTML report show are computed from test information,
-  and every `validate` number is a rank correlation. That error is scale rather
-  than width; `fit/intervals.py` explains why widening cannot fix it.
-- **No performance claims beyond three measurements.** `fit` took 9.7 s on 20
-  respondents × 600 items, 29.3 s on 12 × 3,551, and 23.5 s on 95 × 3,551
-  (323,656 responses) — all on CPU at the default 2,000 SVI steps. Those are
-  the only timings we stand behind. Note the 95-respondent fit was *not* slower
-  than the 12-respondent one on the same items: cost here is dominated by item
-  count and step count, not respondents. It will not extrapolate cleanly to
-  your matrix.
+  correlation the guide drops: coverage 91.1–93.3%, still a little narrow.
+- **The interval on `theta` carries the uncertainty in its own ruler.**
+  `theta ~ N(0, 1)` is a fixed prior, so a fit standardises abilities to *its
+  own sample* — and fifteen draws from `N(0, 1)` have a sample sd of 0.82 as
+  readily as 1.0. Every ability then comes out stretched by a shared factor,
+  which no per-respondent width covers: the variational interval covered the
+  true ability **64.4%** of the time at fifteen respondents, and recomputing it
+  from information alone changed nothing. Admitting the ruler is uncertain —
+  the sample sd of `n` draws has relative standard error `1/sqrt(2(n-1))` —
+  takes coverage to **88.9%**, and it widens the intervals on the extreme
+  models while leaving the middle of the pack alone, which is the right shape
+  for a scale error. The correction vanishes as respondents are added.
+- **No performance claims beyond three measurements.** `fit` took 11.3 s on 20
+  respondents × 600 items, 13.1 s on 12 × 3,551, and 19.4 s on 95 × 3,551
+  (336,375 responses) — all on CPU at the default 2,000 SVI steps. Those are
+  the only timings we stand behind. Note the 95-respondent fit is barely slower
+  than the 12-respondent one on the same items despite eight times the
+  responses: cost here is dominated by item count and step count, not
+  respondents. It will not extrapolate cleanly to your matrix.
 - **`py-irt` is not a dependency**, despite the design having originally called
   for it: every release from 0.4 onward declares
   `Requires-Python >=3.9,<3.12`, and on 3.12+ `pip install py-irt` silently
