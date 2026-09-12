@@ -20,13 +20,20 @@ The short version, good news and bad news together:
   synthetic data could not have — including a scoring artefact that makes four
   strong models score below chance.
 - **On that real matrix the anchor-set claim is much weaker.**
-  Leave-one-model-out gives Spearman **+0.662 at n=25** and **+0.867 at n=400**,
-  against +0.994 and +1.000 synthetic. Twenty-five items do not reproduce the
-  ranking here. This is the most important number on the page and the reason
-  the synthetic table is labelled as carefully as it is.
-- **We have not cross-checked the fitter against `mirt` or `py-irt`.** That is
-  a separate, unfinished exercise, and nothing here should be read as agreeing
-  with either.
+  Leave-one-model-out gives Spearman **+0.691 at n=25** and **+0.890 at
+  n=400** — which could only supply 204 eligible items — against +0.921 and
+  +0.976 synthetic. Twenty-five items do not reproduce the ranking here. This
+  is the most important number on the page and the reason the synthetic table
+  is labelled as carefully as it is.
+- **The fitter is cross-checked against `mirt` and `py-irt`, and the check
+  found a real bug.** Agreement with `mirt` 1.41 is Spearman 0.949 on
+  discrimination and 0.9991 on difficulty. The bug was in the *intervals*
+  rather than the estimates: they were roughly half the width they should be,
+  which made the tool refuse too little. §2f has the whole of it.
+- **Every number on this page was re-measured after that fix**, from a matrix
+  rebuilt with the scripts in [`../scripts/`](../scripts/) — which did not exist
+  when this page was first written, and whose absence is why re-measuring was a
+  project rather than a command.
 
 ---
 
@@ -136,18 +143,29 @@ dataset ... is restricted. You must have access to it and be authenticated"*.
 They are usable with an accepted licence and a token, and not usable for an
 unauthenticated reproduction, which is why HELM was used instead.
 
-**What we built.** 18 HELM Lite scenarios (5 MMLU subjects, OpenBookQA, 7 MATH
-level-1 subjects, 5 LegalBench subsets), collected across all 14 published
-`lite` versions and deduplicated to the latest run per (scenario, model):
+**What we built.** 18 HELM Lite scenarios — 5 MMLU subjects, OpenBookQA, 7 MATH
+level-1 subjects, 5 LegalBench subsets, each one named in
+[`../scripts/fetch_helm.py`](../scripts/fetch_helm.py) rather than left to be
+inferred — collected across all 14 published `lite` versions and deduplicated
+to the latest run per (scenario, model):
 
 ```
-95 models × 3,551 items, 323,656 responses, 0 read errors
+95 models × 3,551 items, 336,375 responses, 0 read errors
 metrics used: exact_match, quasi_exact_match, math_equiv_chain_of_thought
-every item answered by between 87 and 95 of the 95 models
+every item answered by between 93 and 95 of the 95 models
 ```
 
-The matrix is unusually dense for real data because HELM runs every model on
-every scenario it publishes.
+The matrix is unusually dense for real data — 99.7% — because HELM runs every
+model on every scenario it publishes.
+
+Rebuild it with the three scripts in [`../scripts/`](../scripts/); it takes
+about 35 seconds and 1,710 requests. They did not exist when this page was
+first written, which is what made these numbers expensive to re-measure after
+the interval fix in §2f. The one real bug in them is worth knowing about
+because the output still looked plausible: a run directory can carry parameters
+*after* the model name, as in `...,model=amazon_nova-lite-v1:0,stop=none`, and
+folding those into the model id turns 95 models into 103 with eight of them
+duplicated, each duplicate getting its own ability.
 
 ### 2a. Twelve models — the case irtcheck is built for
 
@@ -171,33 +189,41 @@ team comparing a shortlist actually has:
 | 0.731               | `meta_llama-3-70b`                       |
 | 0.778               | `google_gemini-1.5-pro-002`              |
 
-`irtcheck fit` on this took **29.3 s** (42,612 responses, 2,000 SVI steps,
+`irtcheck fit` on this took **13.1 s** (42,612 responses, 2,000 SVI steps,
 CPU). The report header:
 
 | | 12 models × 3,551 items | synthetic, 20 respondents × 600 items |
 | --- | --- | --- |
-| usable for ranking  | 1,664 (46.9%) | 306 (51.0%) |
-| `insufficient-data` | 1,602 (45.1%) | 256 (42.7%) |
-| `dead`              | 29 (0.8%)     | 3 (0.5%)      |
-| `ceiling`           | 3.8%          | 3.7%          |
-| `floor`             | 4.3%          | 2.7%          |
+| usable for ranking  | 568 (16.0%)   | 131 (21.8%) |
+| `insufficient-data` | 2,980 (83.9%) | 429 (71.5%)   |
+| `dead`              | 3 (0.08%)     | 1 (0.2%)      |
+| `ceiling`           | 3.8%          | 3.8%          |
+| `floor`             | 4.3%          | 2.8%          |
 
-> **Superseded.** Both columns here were measured with the reported item
-> interval taken from the variational marginals. That interval was too narrow —
-> §2f — and the item intervals now come from the conditional information matrix
-> instead, which raises every `insufficient-data` count. Re-running the
-> *synthetic* column alone gives 131 usable (21.8%), 429 `insufficient-data`
-> (71.5%), 1 `dead` (0.2%), ceiling 3.8% / floor 2.8%. The real fit has not been
-> re-run, so the correspondence argued below **cannot currently be checked**,
-> and comparing the old real column against the new synthetic one would be
-> comparing two different estimators. The `ceiling` and `floor` rows are
-> unaffected either way: those flags read observed rates, not intervals.
+Both columns were re-measured after §2f moved the reported item interval off
+the variational marginals; the scripts that rebuild the matrix are in
+[`../scripts/`](../scripts/) and their provenance is recorded there. The
+previous version of this table read 1,664 usable / 1,602 `insufficient-data` /
+29 `dead` on the real side — those numbers came from intervals that were
+measurably too narrow, and the whole of the change is in the three rows that
+read an interval. **`ceiling` came out at 3.8% and `floor` at 4.3% both times,
+to the decimal**, which is the check that the rebuild is the same matrix: those
+two flags read observed rates rather than intervals, so they should not have
+moved, and they did not.
 
-**The real matrix behaves like the synthetic one at comparable respondent
-count.** Slightly under half the items unrankable, `dead` under one per cent,
-single-digit ceiling and floor rates. `report` raises a caution rather than a
-refusal (45% is below the 50% refusal threshold) and points at
-`--respondent-key`.
+**The real matrix still behaves like the synthetic one at comparable respondent
+count.** Around a fifth of items usable, `dead` well under one per cent,
+single-digit ceiling and floor rates. The real matrix is somewhat harsher —
+83.9% unrankable against 71.5% — which is what twelve real models should look
+like next to twenty pseudo-respondents drawn from a 2PL. `report` now leads
+with a refusal rather than a caution, because 83.9% is well past the 50%
+threshold.
+
+That correspondence surviving the interval change is worth more than it looked
+like the first time. It was the claim most at risk: if the small-N behaviour
+this README describes were an artefact of how `synth.py` draws parameters, a
+change to how intervals are computed is exactly the sort of thing that would
+have broken the resemblance. It moved both columns by a similar amount instead.
 
 That correspondence is the most useful thing on this page. The small-N
 behaviour the README describes — most weak items landing in
@@ -207,36 +233,60 @@ draws parameters. It is what happens on real model responses too.
 ### 2b. What the real data says that synthetic data could not
 
 Grouping the per-item output by HELM scenario gives a signal ranking over real
-benchmarks. `n` is items, `usable` is items carrying no flag, and mean `a` is
-over the usable ones:
+benchmarks. This is the 95-model fit rather than the twelve-model one, for a
+reason given below. `n` is items, `usable` is items carrying no flag, and mean
+`a` is over **all** items in the scenario:
 
-| scenario                                         |    n | usable | ins-data | dead | mean `a` |
-| ------------------------------------------------ | ---: | -----: | -------: | ---: | -------: |
-| `openbookqa`                                     |  500 |    361 |       66 |    2 |     1.64 |
-| `mmlu_computer_security`                         |  111 |     56 |       30 |    1 |     1.68 |
-| `math_number_theory`                             |   30 |     13 |       17 |    0 |     1.55 |
-| `mmlu_abstract_algebra`                          |  111 |     38 |       66 |    2 |     1.51 |
-| `mmlu_college_chemistry`                         |  108 |     51 |       42 |    3 |     1.51 |
-| `math_precalculus`                               |   57 |     27 |       30 |    0 |     1.51 |
-| `mmlu_us_foreign_policy`                         |  111 |     76 |       17 |    0 |     1.47 |
-| `math_counting_and_probability`                  |   39 |     25 |       13 |    0 |     1.48 |
-| `math_intermediate_algebra`                      |   52 |     24 |       26 |    0 |     1.46 |
-| `legalbench_function_of_decision_section`        |  367 |    152 |      109 |    3 |     1.45 |
-| `math_algebra`                                   |  135 |    108 |       27 |    0 |     1.44 |
-| `mmlu_econometrics`                              |  126 |     62 |       56 |    4 |     1.44 |
-| `math_prealgebra`                                |   86 |     60 |       24 |    1 |     1.43 |
-| `math_geometry`                                  |   38 |     15 |       21 |    0 |     1.40 |
-| `legalbench_abercrombie`                         |   95 |     40 |       48 |    4 |     1.38 |
-| `legalbench_proa`                                |   95 |     62 |       15 |    0 |     1.37 |
-| `legalbench_corporate_lobbying`                  |  490 |    210 |      276 |    2 |     1.36 |
-| `legalbench_international_citizenship_questions` | 1000 |    255 |      719 |    7 |     1.09 |
+| scenario                                         |    n | usable | usable % | ins-data | dead | mean `a` |
+| ------------------------------------------------ | ---: | -----: | -------: | -------: | ---: | -------: |
+| `openbookqa`                                     |  500 |    491 |    98.2% |        9 |    0 |     2.15 |
+| `mmlu_us_foreign_policy`                         |  111 |    105 |    94.6% |        6 |    0 |     2.11 |
+| `math_algebra`                                   |  135 |    134 |    99.3% |        1 |    0 |     2.02 |
+| `mmlu_computer_security`                         |  111 |     96 |    86.5% |       15 |    0 |     1.78 |
+| `math_prealgebra`                                |   86 |     86 |   100.0% |        0 |    0 |     1.83 |
+| `math_counting_and_probability`                  |   39 |     39 |   100.0% |        0 |    0 |     1.80 |
+| `math_number_theory`                             |   30 |     30 |   100.0% |        0 |    0 |     1.63 |
+| `math_precalculus`                               |   57 |     54 |    94.7% |        3 |    0 |     1.56 |
+| `math_intermediate_algebra`                      |   52 |     50 |    96.2% |        2 |    0 |     1.55 |
+| `math_geometry`                                  |   38 |     35 |    92.1% |        3 |    0 |     1.41 |
+| `mmlu_econometrics`                              |  126 |    115 |    91.3% |       11 |    0 |     1.30 |
+| `legalbench_corporate_lobbying`                  |  490 |    431 |    88.0% |       53 |    6 |     1.30 |
+| `mmlu_college_chemistry`                         |  108 |     87 |    80.6% |       21 |    0 |     1.23 |
+| `legalbench_proa`                                |   95 |     92 |    96.8% |        3 |    0 |     1.13 |
+| `legalbench_function_of_decision_section`        |  367 |    261 |    71.1% |      106 |    0 |     1.04 |
+| `legalbench_abercrombie`                         |   95 |     85 |    89.5% |       10 |    0 |     0.97 |
+| `mmlu_abstract_algebra`                          |  111 |     92 |    82.9% |       19 |    0 |     0.93 |
+| `legalbench_international_citizenship_questions` | 1000 |    635 |    63.5% |      339 |   26 |     0.54 |
 
 The finding the tool exists to produce is in the last row.
 `legalbench_international_citizenship_questions` is the **largest** scenario in
-this matrix — 1,000 items, 28% of it — and the **weakest**: 72% of its items
-are unrankable at twelve models and its usable items have the lowest mean
-discrimination of any scenario here. OpenBookQA is half its size and yields
-361 usable items to its 255.
+this matrix — 1,000 items, 28% of it — and the **weakest** by a wide margin:
+the lowest mean discrimination of any scenario present (0.54 against
+OpenBookQA's 2.15), the lowest usable fraction, 339 of the 601
+`insufficient-data` items in the whole matrix, and **all 26 of the items the
+fit is confident discriminate the wrong way** (see §2e). OpenBookQA is half its
+size and yields 491 usable items to its 635 — from 500 items rather than 1,000.
+
+### Two changes to how this table is computed, both corrections
+
+**Mean `a` is now over every item in the scenario, not over the usable ones.**
+Averaging over usable items conditions on the flag, and the flag selects on
+`a`: an item is usable only if its interval excludes zero, which for a small
+`a` requires a large estimate. So "mean `a` over usable items" is bounded below
+by roughly the threshold and cannot rank scenarios. With the wider intervals of
+§2f this became obvious — on the twelve-model fit it compresses every scenario
+into 1.59–1.87 and puts `legalbench_international_citizenship_questions`
+*mid-table*, which is the opposite of what the data says. Over all items the
+same fit spreads them 0.48–1.47 and ranks it last, agreeing with the 95-model
+column above. The old table's 1.09–1.68 range was this bias in milder form.
+
+**The ranking is read off the 95-model fit.** At twelve models 84% of items are
+`insufficient-data`, so any per-scenario statistic is dominated by how much the
+fit could not tell. At 95 models 82% are usable and the ranking is about the
+items. The twelve-model fit still agrees on the finding that matters —
+`legalbench_international_citizenship_questions` yields 7 usable items out of
+1,000 there, against OpenBookQA's 229 out of 500 — it just cannot support a
+full ordering.
 
 An aggregate score over this item set is dominated, by item count, by the
 scenario carrying the least measurement signal per item. **That is the claim
@@ -308,17 +358,26 @@ model:
 
 | n   | items | Spearman | Kendall tau | Spearman (theta) | tau (theta) |
 | --- | ----- | -------- | ----------- | ---------------- | ----------- |
-| 25  | 25    | +0.662   | +0.504      | +0.797           | +0.606      |
-| 50  | 50    | +0.775   | +0.585      | +0.853           | +0.667      |
-| 100 | 100   | +0.629   | +0.455      | +0.804           | +0.606      |
-| 200 | 200   | +0.830   | +0.687      | +0.902           | +0.758      |
-| 400 | 400   | +0.867   | +0.727      | +0.888           | +0.758      |
+| 25  | 25    | +0.691   | +0.523      | +0.797           | +0.606      |
+| 50  | 50    | +0.755   | +0.545      | +0.846           | +0.667      |
+| 100 | 100   | +0.687   | +0.504      | +0.776           | +0.576      |
+| 200 | 200   | +0.855   | +0.657      | +0.790           | +0.606      |
+| 400 | 204\* | +0.890   | +0.748      | +0.811           | +0.636      |
 
-Against the synthetic matrix's +0.994 at n=25 and +1.000 from n=100. **On this
-real matrix, a 25-item anchor set does not reproduce the ranking**, and 400
-items get to +0.867 — respectable, but nothing like the synthetic result, and
-not the "1% of the items, 2% error" figure that circulates about IRT-selected
-benchmark subsets.
+Against the synthetic matrix's +0.921 at n=25 and +0.976 at n=100. **On this
+real matrix, a 25-item anchor set does not reproduce the ranking**, and it takes
+a few hundred items to reach +0.89 — respectable, but nothing like the
+synthetic result, and not the "1% of the items, 2% error" figure that
+circulates about IRT-selected benchmark subsets.
+
+**The asterisk is the most interesting thing in the table.** n=400 could only
+supply **204** items, because after §2f the pool of items eligible for
+selection is 568 rather than 1,664 — and those 204 items score **+0.890**,
+above the +0.867 that 400 items managed before. Half the anchor set, a better
+ranking. The items the wider intervals removed from eligibility were not
+carrying signal the old anchor sets were exploiting; they were adding noise the
+old selection could not see, which is the case for the interval change stated
+in terms a user of `select` would care about.
 
 Three things about this table are worth stating plainly rather than explaining
 away.
@@ -335,12 +394,17 @@ twelve models a single adjacent swap moves Spearman by only about 0.007, so a
 selected sets at those two sizes genuinely differ in how well they order these
 models. Read the trend, not any row.
 
-**The `theta` columns beat the accuracy columns at every size**, by 0.06 to 0.18
-Spearman. `validate`'s own documentation says those two diverge when an anchor
-set skews hard or easy, so that gap is the tool reporting that its anchor sets
-are mis-centred for these respondents. Re-estimating ability with the item
-parameters held fixed corrects for it; plain accuracy over the anchor items,
-which is what a user would actually do, does not.
+**The `theta` columns beat the accuracy columns at small n, and stop doing so
+at large n.** At n=25 to 100 the gap is 0.09 to 0.11 Spearman in `theta`'s
+favour; at n=200 and 400 the accuracy columns win by 0.07 and 0.08.
+`validate`'s own documentation says those two diverge when an anchor set skews
+hard or easy, so the gap at small n is the tool reporting that a 25-item set is
+mis-centred for these respondents, and re-estimating ability with the item
+parameters held fixed corrects for it. The crossover is new: before §2f the
+`theta` columns led at *every* size, by 0.06 to 0.18. Now that the eligible
+pool excludes the items whose discrimination was never established, a
+200-item set is well enough centred that plain accuracy — which is what a user
+would actually do with an anchor set — is the better estimator.
 
 #### Why, as far as we can tell
 
@@ -374,8 +438,8 @@ twelve models, a few hundred items reproduce the ranking usefully and
 twenty-five do not.
 
 It also means `validate` is doing its job. A tool that reported +0.99 here
-would be broken; this one reported +0.66 and flagged, through the theta
-columns, why.
+would be broken; this one reported +0.69 at n=25 and flagged, through the theta
+columns, that the small anchor sets were mis-centred.
 
 ### 2d. Two of those hypotheses are testable on this data
 
@@ -402,45 +466,75 @@ Between them these separate "IRT does not describe this suite" from "we did not
 give it enough models", which is the single most useful thing left to know
 about this data. Until they are run, §2c's causes stay hypotheses.
 
-### 2e. Ninety-five models — `dead` becomes reachable
+### 2e. Ninety-five models, and what `dead` actually means
 
 Fitting all 95 models is outside the tool's design range and is interesting for
-one reason: CLAUDE.md claimed `dead` needs "roughly a hundred respondents"
-before an interval can sit wholly below the threshold. 95 real models is the
-first chance to check that against real responses rather than a generated
-matrix. The fit takes **23.5 s** for 323,656 responses (96% dense).
+one reason: it is the only place on this page where the same 3,551 items are
+seen by two very different numbers of respondents. The fit takes **19.4 s** for
+336,375 responses (99.7% dense).
 
-> **Superseded, and the claim it was testing was wrong anyway.** These counts
-> come from the variational interval (§2f), so the split between
-> `insufficient-data` and `dead` would move if the fit were re-run. The
-> *direction* below is safe — both columns were measured the same way, so going
-> from 12 to 95 respondents really did collapse `insufficient-data` — but the
-> "roughly a hundred respondents" figure it set out to confirm does not survive
-> contact with the arithmetic. `dead` needs the interval wholly inside
-> `(0, 0.35)`, clearing zero as well as the threshold, so it needs
-> `sd(a) < 0.089`; measured on synthetic matrices with the current intervals no
-> item reaches it at 300 respondents and eighteen of 200 do at 1,000. CLAUDE.md
-> and the README now say a thousand.
-
-| items out of 3,551 | 12 models   | 95 models   |
-| ------------------ | ----------- | ----------- |
-| usable for ranking | 1,664 (47%) | 3,272 (92%) |
-| `insufficient-data`| 1,602 (45%) | 225 (6.3%)  |
-| `dead`             | 29 (0.8%)   | 94 (2.6%)   |
-| `ceiling`          | 3.8%        | 0.0%        |
-| `floor`            | 4.3%        | 1.5%        |
-| `report` verdict   | caution     | none        |
+| items out of 3,551 | 12 models     | 95 models     |
+| ------------------ | ------------- | ------------- |
+| usable for ranking | 568 (16.0%)   | 2,918 (82.2%) |
+| `insufficient-data`| 2,980 (83.9%) | 601 (16.9%)   |
+| `dead`             | 3 (0.08%)     | 32 (0.90%)    |
+| `ceiling`          | 3.8%          | 0.0%          |
+| `floor`            | 4.3%          | 1.5%          |
+| `report` verdict   | refusal       | none          |
 
 **The claim holds, measured on real data.** Going from 12 to 95 respondents on
-the *same 3,551 items* collapses `insufficient-data` by a factor of seven and
-roughly triples `dead`. Nothing about the items changed; the only thing that
+the *same 3,551 items* collapses `insufficient-data` by a factor of five and
+multiplies `dead` by ten. Nothing about the items changed; the only thing that
 changed was how much evidence there was about each one. "We cannot tell"
-becomes "we can tell", and about 2.6% of the suite turns out to be genuinely
-dead weight — a claim that was simply not available at twelve models.
+becomes "we can tell" for two thirds of the suite. This is the strongest
+argument for `--respondent-key` in the documentation, and the clearest
+demonstration that `insufficient-data` is a statement about the data rather
+than about the items.
 
-This is the strongest argument for `--respondent-key` in the documentation, and
-it is also the clearest demonstration that `insufficient-data` is a statement
-about the data rather than about the items.
+### `dead` on real data means something other than what it says
+
+This was the surprise, and it is a finding about the tool rather than about
+HELM. Every one of the 32 items flagged `dead` at 95 models — and all 3 at
+twelve — gets there by having an interval on `a` that lies wholly **below
+zero**, not by having a small positive one. Not a single item in either fit has
+`sd(a) < 0.089`, which is what the small-positive route needs.
+
+    legalbench_corporate_lobbying_id196   a in [-1.169, -0.224]   n = 93
+    legalbench_corporate_lobbying_id214   a in [-1.075, -0.158]   n = 93
+    legalbench_corporate_lobbying_id256   a in [-1.170, -0.205]   n = 93
+
+A confidently negative `a` does not mean the item fails to discriminate. It
+means it discriminates **backwards**: weaker models get it right more often
+than stronger ones. That is a real and useful finding — a plausibly mis-keyed
+answer, or a question whose confident answer is wrong — and it is not "dead
+weight you can drop", which is what the flag's documentation says it means and
+what `report` prints.
+
+Of the 32, **26 are in `legalbench_international_citizenship_questions`** and 6
+in `legalbench_corporate_lobbying`. So the scenario §2b identifies as the
+largest and weakest is also the only one carrying a concentration of items that
+are actively misleading. Nothing else in the matrix has any.
+
+Two consequences worth separating:
+
+- **For this data**, the flag pointed at something worth looking at, which is
+  what it is for.
+- **For the tool**, `dead` currently merges two different claims —
+  "confidently flat" and "confidently inverted" — under a label that describes
+  only the first. The rule is `hdi_high < DEAD_THRESHOLD`, and an interval of
+  `[-1.17, -0.22]` satisfies it as readily as `[0.05, 0.30]` does. On synthetic
+  data the two routes separate by respondent count: the small-positive route
+  needs `sd(a) < 0.089`, so no item reaches it at 300 respondents and eighteen
+  of 200 do at 1,000, while the negative route fires at any size. On real data
+  the negative route is the only one that fires at all, which is why the
+  "thousand respondents" figure — true of the small-positive route — should not
+  be read as "`dead` is unreachable below a thousand respondents". It is not.
+
+  This predates the interval change; the rule is untouched. §2f made it visible
+  by widening every interval. It is **filed rather than fixed**, because
+  splitting `dead` into two flags changes the artifact's flag vocabulary, which
+  `IrtFit.validate()`, `synth.py`, the report, the HTML and CLAUDE.md's
+  invariant list all encode — not something to do in passing.
 
 ### 2f. The interval on `a` was too narrow, and the tool refused too little
 
@@ -505,19 +599,46 @@ regime the tool is for. Running 10,000 epochs instead of 2,000 moves the median
 known, so the remaining 2–4 points of under-coverage is real and in the same
 direction: still slightly too narrow, still slightly slow to refuse.
 
-And `theta`'s interval is untouched, because the same treatment does not help
-it — 64.4% coverage at 15 × 500 before and after. Its error there is not width
-but **scale**: `theta ~ N(0, 1)` is a fixed ruler, the 15 true abilities have a
-sample sd of 0.82 rather than 1.0, and the fit stretches every ability by the
-difference. Regressing truth on the estimate gives a slope of 0.85 and an
-RMSE 2.18× the reported sd, so the error is a shared factor and no width would
-cover it. It does not touch any claim on this page: every validation number here
-is a **rank** correlation, and a shared scale factor leaves ranks alone. Nor is
-it displayed anywhere — nothing in the package reads `theta.sd` or
-`theta.hdi_*`, and the ability standard errors `select` and the HTML report show
-are computed from test information, `1/sqrt(1 + I(theta))`. It is a field in the
-artifact that no one reads, which argues for computing it properly or removing
-it rather than for leaving it as it is.
+### `theta` needed a different correction: the ruler, not the reading
+
+The item treatment does nothing for `theta` — 64.4% coverage at 15 × 500 before
+and after, and 64.4% again computing it from information alone. Its error is not
+width but **scale**.
+
+`theta ~ N(0, 1)` is a fixed prior, and deliberately so: it is what makes `a`
+and `b` identified at all. But it describes a *population*, and a fit sees a
+sample of `n` of them. Fifteen draws from `N(0, 1)` have a sample sd of 0.82 as
+readily as 1.0, and the fit standardises to its own sample, so every ability
+comes out stretched by the ratio. Measured at 15 × 500: sd of the estimates
+0.94 against 0.82 for the truth, regression of truth on estimate giving a slope
+of **0.85**, and an RMSE **2.18×** the reported sd. A shared multiplicative
+factor is not noise, and no per-respondent width covers it.
+
+What covers it is admitting the ruler is uncertain. The sample sd of `n` draws
+has relative standard error `1/sqrt(2(n-1))`, and a scale error moves `theta_j`
+in proportion to `theta_j`, so it enters in quadrature:
+
+    var(theta_j) = 1 / (1 + I(theta_j))  +  (theta_j / sqrt(2(n-1)))^2
+
+| regime | variational | information only | information + scale |
+| --- | --- | --- | --- |
+| 15 × 500 | 64.4% | 64.4% | **88.9%** |
+| 60 × 500 | 78.9% | 80.0% | **88.9%** |
+| 300 × 60 | 93.9% | 93.6% | 93.7% |
+
+Two properties make this the right correction rather than a well-scoring one.
+It is proportional to `|theta_j|`, so it widens the extreme models and leaves
+the middle of the pack alone — which is what a mis-estimated scale does, and a
+correction that widened everything equally would be the wrong shape however it
+scored. And it vanishes as `n` grows, which is why all three columns agree at
+300 respondents. `tests/test_intervals.py` asserts both.
+
+It is still short of 95%, with the same cause as the items': a Gaussian
+interval on a posterior that is not Gaussian, and a first-order scale
+correction. Note also that **no claim on this page moved because of it** —
+every validation number here is a rank correlation, and a shared scale factor
+leaves ranks alone. The interval matters for what a reader takes from the
+ability column of a report, not for the anchor-set results.
 
 **The consequence for small suites is not cosmetic.** Honest intervals refuse a
 great deal more. At 15 respondents the flag becomes nearly silent — refusal by
@@ -575,14 +696,21 @@ and then, per record, `{"model_id": <model>, "item_id": "<scenario>_<instance_id
   identification convention matches ours. The comparison also found the interval
   bug in §2f and showed that at twelve respondents unpenalised ML has no interior
   maximum at all, which is the empirical case for the hierarchical priors.
-- **No real-data re-run since the interval change.** §2f moved the reported item
-  interval off the variational marginals, which changes every
-  `insufficient-data` count on this page. The synthetic numbers were re-measured;
-  the HELM fits were not, because the fetch scripts are not in the repository
-  and the eighteen scenario subsets are not recorded precisely enough to rebuild
-  the same 3,551 items. §2a and §2e are marked superseded. **This is the single
-  most useful thing to run next on this data**, and shipping the fetch scripts
-  is the prerequisite.
+- **The 95-model matrix is a rebuild, not a bit-for-bit reproduction.** The
+  twelve-model cut matches the original exactly — same 42,612 responses, all
+  twelve accuracies to three decimals — but the 95-model matrix came out denser
+  than the first build: 336,375 responses against 323,656, and 93–95 models per
+  item against 87–95. Same eighteen scenarios and same 95 models; the
+  difference is that this build takes the latest published run for every
+  (scenario, model) pair across all 14 versions, which recovers runs the first
+  one missed. The scripts are in [`../scripts/`](../scripts/) so the next person
+  does not have to wonder. Nothing on this page depends on the difference, and
+  §2e's 12-vs-95 comparison is internally consistent either way.
+- **`dead` conflates two claims, and it is filed rather than fixed.** Every
+  item flagged `dead` on real data gets there by a confidently *negative* `a`,
+  not a confidently small one — see §2e. Splitting the flag would change the
+  artifact's flag vocabulary, which `IrtFit.validate()`, `synth.py`, the report,
+  the HTML and CLAUDE.md all encode.
 - **No real-data leave-one-model-out beyond twelve and twenty-five models.**
   The full 95-model sweep is 95 refits and was not run. Whether rank recovery
   keeps improving past twenty-five respondents is therefore open, and it is the
@@ -590,8 +718,8 @@ and then, per record, `{"model_id": <model>, "item_id": "<scenario>_<instance_id
 - **None of the causes of the §2c shortfall is measured.** All four are
   hypotheses. Two of them are testable on exactly this data and §2d says how;
   they are the next thing to run.
-- **No timings beyond the three above** (9.7 s for 20 × 600, 29.3 s for
-  12 × 3,551, 23.5 s for 95 × 3,551, all CPU, 2,000 SVI steps). They will not
+- **No timings beyond the three above** (11.3 s for 20 × 600, 13.1 s for
+  12 × 3,551, 19.4 s for 95 × 3,551, all CPU, 2,000 SVI steps). They will not
   extrapolate cleanly: cost scales with observed responses and with item count,
   and SVI step count is a flag.
 - **No claim about how many respondents you need.** The fitter's recovery curve

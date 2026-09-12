@@ -141,6 +141,107 @@ def test_a_wider_interval_refuses_more_not_less():
     )
 
 
+# Measured with the information-plus-scale interval this module tests, over the
+# three seeds above. The variational marginals it replaced gave 64.4 / 78.9 /
+# 93.9, and information alone gave 64.4 / 80.0 / 93.6 -- the scale term is the
+# whole of the improvement at small n.
+#
+#   regime      variational   information only   information + scale   floor
+#   15 x 500        64.4%          64.4%               88.9%            0.84
+#   60 x 500        78.9%          80.0%               88.9%            0.84
+#   300 x 60        93.9%          93.6%               93.7%            0.88
+THETA_REGIMES = {
+    "small": dict(n_models=15, n_items=500, floor=0.84),
+    "medium": dict(n_models=60, n_items=500, floor=0.84),
+    "dense": dict(n_models=300, n_items=60, floor=0.88),
+}
+
+
+def theta_coverage(*, n_models: int, n_items: int, seed: int) -> float:
+    matrix, truth = synthetic_matrix(n_models=n_models, n_items=n_items, seed=seed)
+    fit = fit_2pl(matrix, seed=seed)
+    order = [list(truth.respondent_ids).index(r) for r in fit.respondent_ids]
+    true_theta = np.asarray(truth.theta, dtype=float)[order]
+    low = np.asarray(fit.theta.hdi_low, dtype=float)
+    high = np.asarray(fit.theta.hdi_high, dtype=float)
+    return float(((low <= true_theta) & (true_theta <= high)).mean())
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("regime", sorted(THETA_REGIMES))
+def test_the_interval_on_theta_covers_the_truth(regime):
+    """`theta`'s interval has to carry the uncertainty in its own ruler.
+
+    `theta ~ N(0, 1)` is a fixed prior, so a fit standardises abilities to its
+    own sample — and `n` draws from `N(0, 1)` have a sample sd that is not 1.
+    Every ability therefore comes out stretched by a shared factor, which no
+    per-respondent width covers: at 15 respondents the variational interval
+    covered the truth 64.4% of the time against a nominal 95%, and computing it
+    from information instead changed nothing. Adding the scale term takes it to
+    88.9%. See fit/intervals.py.
+    """
+    spec = THETA_REGIMES[regime]
+    coverage = float(
+        np.mean(
+            [
+                theta_coverage(n_models=spec["n_models"], n_items=spec["n_items"], seed=seed)
+                for seed in SEEDS
+            ]
+        )
+    )
+    assert coverage >= spec["floor"], (
+        f"{regime}: the 95% interval on `theta` covered the true ability "
+        f"{coverage:.1%} of the time, below the {spec['floor']:.0%} floor."
+    )
+
+
+@pytest.mark.slow
+def test_the_scale_correction_widens_the_extremes_and_not_the_middle():
+    """The scale term is proportional to |theta|, and that is the point.
+
+    A mis-estimated ruler moves the models furthest from zero the most and the
+    ones near zero not at all, so a correction that widened every interval
+    equally would be the wrong shape however well it scored on coverage.
+    """
+    matrix, _ = synthetic_matrix(n_models=40, n_items=300, seed=0)
+    fit = fit_2pl(matrix, seed=0)
+    theta = np.abs(np.asarray(fit.theta.mean, dtype=float))
+    sd = np.asarray(fit.theta.sd, dtype=float)
+    middle = theta < np.quantile(theta, 0.25)
+    extreme = theta > np.quantile(theta, 0.75)
+    assert sd[extreme].mean() > sd[middle].mean(), (
+        f"the extreme models' intervals ({sd[extreme].mean():.4f}) are not wider "
+        f"than the middle of the pack's ({sd[middle].mean():.4f}), so the scale "
+        "correction is not proportional to |theta| as intended"
+    )
+
+
+@pytest.mark.slow
+def test_a_respondent_who_answered_nothing_gets_the_prior_back():
+    """theta ~ N(0, 1) contributes precision 1, so an empty row has sd 1.
+
+    Not a division by zero, and not an arbitrary fallback: the prior *is* the
+    answer for a respondent there is no evidence about.
+    """
+    matrix, _ = synthetic_matrix(n_models=15, n_items=60, seed=0)
+    keep = np.asarray(matrix.rows) != 0
+    stripped = type(matrix)(
+        respondent_ids=list(matrix.respondent_ids),
+        item_ids=list(matrix.item_ids),
+        derives_from=list(matrix.derives_from),
+        rows=np.asarray(matrix.rows)[keep],
+        cols=np.asarray(matrix.cols)[keep],
+        obs=np.asarray(matrix.obs)[keep],
+        respondent_key=tuple(matrix.respondent_key),
+    )
+    dropped = matrix.respondent_ids[0]
+    fit = fit_2pl(stripped, seed=0)
+    index = fit.respondent_ids.index(dropped)
+    # The within-respondent term is exactly 1/sqrt(1) = 1; the scale term adds
+    # (theta * relative)^2 on top, and theta for an unanswered row sits near 0.
+    assert 1.0 <= fit.theta.sd[index] < 1.05, fit.theta.sd[index]
+
+
 @pytest.mark.slow
 def test_an_unanswered_item_gets_the_population_prior_back():
     """With no responses the information is all prior, so sd should be sigma_a.

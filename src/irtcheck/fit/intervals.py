@@ -87,27 +87,53 @@ Below that, an item that does not discriminate comes back
 `insufficient-data` — "we cannot tell" rather than "we are sure it is flat" —
 which is the weaker claim and the right one to make from a wider interval.
 
-`theta`'s interval is deliberately left as the variational one. The same
-treatment does not improve it (64.4% before, 64.4% after at 15 x 500), because
-its error there is not width but scale: `theta ~ N(0, 1)` is a fixed ruler, the
-15 true abilities have a sample sd of 0.82 rather than 1.0, and the fit stretches
-every ability by the difference. The error is a shared factor, not noise —
-regressing truth on the estimate gives a slope of 0.85 — so no width would cover
-it.
+## `theta`, where the missing uncertainty is the ruler itself
 
-Two things keep that from being a live misstatement, and both are worth knowing
-before anyone "fixes" it. Nothing displays `theta.sd` or `theta.hdi_*`: grep
-the package and the only reads are here. The ability standard errors that
-`select` and the HTML report *do* show are computed from test information,
-`1/sqrt(1 + I(theta))`, which is the same Fisher-information reasoning applied
-above to the items. And every claim `validate` makes is a **rank** correlation,
-which a shared scale factor leaves alone. So the variational interval on theta
-is carried in the artifact, is honest about nothing, and is read by no one —
-which is an argument for computing it properly or dropping it, not for leaving
-it undocumented.
+`theta` needs a different correction, and applying the item treatment to it
+does nothing at all: 64.4% coverage before and 64.4% after at 15 x 500. The
+reason is that its error is not width but **scale**.
+
+`theta ~ N(0, 1)` is a fixed prior, and that is deliberate — it is the ruler
+that makes `a` and `b` identified at all (see model.py, "Identification"). But
+it is a claim about the *population*, and a fit sees a sample of `n` of them.
+Fifteen draws from `N(0, 1)` have a sample sd of 0.82 as readily as 1.0, and
+the fit standardises to its own sample, so every ability comes out stretched by
+the ratio. Measured at 15 x 500: sd of the estimates 0.94 against 0.82 for the
+truth, and regressing truth on estimate gives a slope of 0.85 with an RMSE 2.18
+times the reported sd. A shared multiplicative factor is not noise, so no
+amount of per-respondent width covers it.
+
+What does cover it is admitting the ruler is uncertain. The sample sd of `n`
+draws has relative standard error `1/sqrt(2(n-1))`, and an error in the scale
+moves `theta_j` in proportion to `theta_j` itself, so it enters in quadrature:
+
+    var(theta_j) = 1 / (1 + I(theta_j))  +  (theta_j / sqrt(2(n-1)))^2
+
+The first term is the within-respondent information, `I(theta_j) =
+sum_i a_i^2 w_ij` with the prior's precision of 1 added — the same
+Fisher-information reasoning as for the items, and already what `select` and the
+HTML report use for the ability standard errors they show. The second is the
+ruler. Measured coverage, three seeds:
+
+    regime      variational   information only   information + scale
+    15 x 500        64.4%          64.4%               88.9%
+    60 x 500        78.9%          80.0%               88.9%
+    300 x 60        93.9%          93.6%               93.7%
+
+Two properties worth noting. The correction vanishes as `n` grows, which is
+right: at 300 respondents the ruler is pinned down and all three agree. And it
+is proportional to `|theta_j|`, so it widens the intervals on the extreme
+models and leaves the middle of the pack alone — which is also right, since a
+scale error is exactly what you cannot detect near zero.
+
+It is still short of 95%, and the shortfall has the same cause as the items':
+these are Gaussian intervals on a posterior that is not Gaussian, and the
+scale correction is itself a first-order approximation.
 """
 
 from __future__ import annotations
+
+import math
 
 import torch
 
@@ -142,6 +168,42 @@ def prior_precisions(
     sigma_a = float(hyperparameters["sigma_a"])
     sigma_b = float(hyperparameters["sigma_b"])
     return 1.0 / sigma_a**2, 1.0 / sigma_b**2
+
+
+def respondent_posterior(
+    data: ResponseTensors,
+    *,
+    a_mean: list[float],
+    b_mean: list[float],
+    theta_mean: list[float],
+) -> Posterior:
+    """A posterior for `theta`, from its information plus the scale uncertainty.
+
+    See the module docstring for the derivation. The mean is the variational
+    one; this replaces the width only.
+    """
+    a = torch.as_tensor(a_mean, dtype=DTYPE)
+    b = torch.as_tensor(b_mean, dtype=DTYPE)
+    theta = torch.as_tensor(theta_mean, dtype=DTYPE)
+
+    rows = data.rows.to(torch.long)
+    slope = a[data.cols.to(torch.long)]
+    p = torch.sigmoid(slope * (theta[rows] - b[data.cols.to(torch.long)]))
+    w = p * (1.0 - p)
+    # The prior contributes precision 1, because theta ~ N(0, 1) is fixed. So a
+    # respondent who answered nothing gets sd 1 -- the prior -- rather than a
+    # division by zero.
+    information = torch.zeros(data.n_respondents, dtype=DTYPE).index_add_(
+        0, rows, slope * slope * w
+    ) + 1.0
+
+    # Relative standard error of the sample sd of n draws. Clamped at n = 2:
+    # with a single respondent the scale is not estimated at all, and 1/sqrt(2)
+    # is the widest this term is ever allowed to be rather than infinite.
+    n = max(int(data.n_respondents) - 1, 1)
+    relative = 1.0 / math.sqrt(2.0 * n)
+    variance = 1.0 / information + (theta * relative) ** 2
+    return _posterior(theta, variance.sqrt())
 
 
 def item_posteriors(
