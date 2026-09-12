@@ -1,0 +1,183 @@
+# Build and publish to PyPI when a `v*` tag is pushed.
+#
+# Two properties this workflow exists to guarantee, both of them about failures
+# that are quiet rather than loud:
+#
+#   1. **The tag and the packaged version agree.** `pyproject.toml` carries the
+#      version; the tag is a separate, hand-typed string. Tag `v0.2.0` against a
+#      pyproject that still says `0.1.0` uploads a distribution called
+#      `irtcheck-0.1.0` — which either collides with the release already on PyPI
+#      and fails confusingly, or succeeds and leaves the tag pointing at a
+#      version nobody can install. PyPI does not allow re-uploading a filename,
+#      so this is the class of mistake that cannot be fixed by pushing a
+#      correction: the only remedy is burning a version number. It is checked
+#      before anything is built.
+#
+#   2. **The artifacts that are tested are the artifacts that are published.**
+#      `build` uploads the dist once; `smoke` installs that exact wheel on every
+#      supported Python and runs the CLI; `publish` downloads the same artifact.
+#      Rebuilding in the publish job would mean shipping something no job in
+#      this run ever executed.
+#
+# Publication uses PyPI Trusted Publishing (OIDC): the `publish` job mints a
+# short-lived token from GitHub's identity provider, so there is no API token in
+# this repository's secrets and nothing to leak or rotate. It requires one-time
+# setup on PyPI — a pending publisher for project `irtcheck`, owner
+# `antispiraldev`, repository `irtcheck`, workflow `release.yml`, environment
+# `pypi` — and until that exists the `publish` job is the only thing that fails.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Lets a tag be re-run after fixing the PyPI-side publisher configuration,
+  # without deleting and re-pushing the tag.
+  workflow_dispatch:
+
+# Read-only by default, and widened to `id-token: write` on the one job that
+# needs to mint an OIDC token. A workflow-wide `id-token: write` would hand that
+# capability to the build and smoke jobs, which run `python -m build` and
+# `pip install` — the two steps in this workflow that execute third-party code.
+permissions:
+  contents: read
+
+jobs:
+  # The gate. Cheap, and it runs before any wheel exists, so a mismatched tag
+  # costs one failed job rather than a bad upload.
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The tag matches the version in pyproject.toml
+        env:
+          # Through the environment, not string-interpolated into the script: a
+          # tag is attacker-controllable text in the general case, and `${{ }}`
+          # substitution happens before bash ever sees it.
+          GIT_REF: ${{ github.ref_name }}
+        run: |
+          python - <<'EOF'
+          import os
+          import sys
+          import tomllib
+
+          ref = os.environ["GIT_REF"]
+          with open("pyproject.toml", "rb") as handle:
+              packaged = tomllib.load(handle)["project"]["version"]
+
+          if not ref.startswith("v"):
+              sys.exit(f"tag {ref!r} does not start with 'v'")
+          tagged = ref[1:]
+
+          if tagged != packaged:
+              sys.exit(
+                  f"tag {ref!r} says version {tagged!r} but pyproject.toml says "
+                  f"{packaged!r}. PyPI filenames cannot be reused, so publishing "
+                  f"this would spend a version number on an unfixable release. "
+                  f"Fix pyproject.toml, or move the tag."
+              )
+          print(f"{ref} == {packaged}")
+          EOF
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install build
+      - run: python -m build
+      # The same assertion CI's `package` job makes. Repeated here rather than
+      # trusted from CI, because a tag can point at a commit whose CI run
+      # predates a change to the sdist excludes.
+      - name: The wheel carries the package and nothing else
+        run: |
+          python - <<'EOF'
+          import pathlib
+          import zipfile
+
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = zipfile.ZipFile(wheel).namelist()
+          assert any(n.startswith("irtcheck/") for n in names), names
+          leaked = [n for n in names if n.startswith(("crosscheck/", "docs/", ".claude/"))]
+          assert not leaked, f"wheel leaked non-package files: {leaked}"
+          print(f"{wheel.name}: {len(names)} entries, clean")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # Install the built wheel — not the repo — on the whole supported range, and
+  # run the CLI. `--no-deps` because this is checking the wheel's own metadata
+  # and entry point, and pulling torch on three runners to type `--help` is ten
+  # minutes of download for nothing: the lazy torch boundary means the CLI, and
+  # `report`/`select`/`validate`, do not import it. `fit` is exercised by CI's
+  # tests-fit job, where the CPU wheel is already installed.
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Install the wheel
+        run: |
+          pip install typer rich numpy scipy matplotlib
+          pip install --no-deps --no-index --find-links dist irtcheck
+      - name: The console script works and reports the packaged version
+        env:
+          GIT_REF: ${{ github.ref_name }}
+        run: |
+          irtcheck --help
+          irtcheck fit --help
+          irtcheck report --help
+          irtcheck select --help
+          irtcheck validate --help
+          # `irtcheck --version` prints `irtcheck <version>`; assert it is the
+          # tag's version, which catches a wheel built from the wrong ref.
+          test "$(irtcheck --version)" = "irtcheck ${GIT_REF#v}"
+      - name: Analysing a fit needs no torch
+        run: |
+          python - <<'EOF'
+          import sys
+
+          from irtcheck.synth import synthetic_fit
+
+          fit, _ = synthetic_fit(n_models=6, n_items=40, seed=0)
+          fit.validate()
+          assert "torch" not in sys.modules, "importing irtcheck dragged torch in"
+          print(f"synthetic fit: {fit.n_items} items, {len(fit.respondent_ids)} respondents")
+          EOF
+
+  publish:
+    needs: smoke
+    runs-on: ubuntu-latest
+    # A GitHub environment, so the trusted publisher on PyPI can be scoped to it
+    # and so a required reviewer can be added later without touching this file.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/irtcheck
+    permissions:
+      # Mints the OIDC token pypi-publish exchanges for a short-lived upload
+      # token. This is the entire reason no PyPI API token exists as a secret.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
