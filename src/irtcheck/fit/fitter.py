@@ -42,7 +42,7 @@ from pyro.optim import ClippedAdam
 from irtcheck import __version__
 from irtcheck.artifact import EmbeddedResponses, IrtFit, Posterior, utc_now
 from irtcheck.fit.flags import flag_counts, item_flags
-from irtcheck.fit.intervals import item_posteriors, prior_precisions
+from irtcheck.fit.intervals import item_posteriors, prior_precisions, respondent_posterior
 from irtcheck.fit.model import (
     PRIORS_HIERARCHICAL,
     ModelError,
@@ -135,22 +135,26 @@ def fit_2pl(
             on_step(step, elbo)
     elapsed = time.perf_counter() - started
 
-    theta = posterior_for(guide, "theta", n_samples=POSTERIOR_SAMPLES, data=data)
-
-    # The variational means, then the item intervals recomputed from curvature.
-    # posterior_for is still what supplies the means — this replaces the width
-    # only, and only for `a` and `b`. See fit/intervals.py.
+    # posterior_for supplies the means for every site. The widths are then
+    # recomputed — from curvature for the items, and from information plus the
+    # scale uncertainty for the abilities. See fit/intervals.py; both are too
+    # narrow coming out of a mean-field guide, for two different reasons.
+    theta_svi = posterior_for(guide, "theta", n_samples=POSTERIOR_SAMPLES, data=data)
     a_svi = posterior_for(guide, "a", n_samples=POSTERIOR_SAMPLES, data=data)
     b_svi = posterior_for(guide, "b", n_samples=POSTERIOR_SAMPLES, data=data)
+
     hyperparameters = _hyperparameters(guide, data, priors)
     precision_a, precision_b = prior_precisions(hyperparameters, priors=priors)
     a, b = item_posteriors(
         data,
         a_mean=a_svi.mean,
         b_mean=b_svi.mean,
-        theta_mean=theta.mean,
+        theta_mean=theta_svi.mean,
         precision_a=precision_a,
         precision_b=precision_b,
+    )
+    theta = respondent_posterior(
+        data, a_mean=a.mean, b_mean=b.mean, theta_mean=theta_svi.mean
     )
 
     # The reflection check. Initialising the guide at a = +1 should always land
