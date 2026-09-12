@@ -1,0 +1,239 @@
+======================================================================================================================
+DATASET dense: 300 respondents x 60 items, 0% missing
+  why: every item parameter is identified; disagreement here is a bug
+======================================================================================================================
+
+estimators:
+  mirt                   marginal maximum likelihood, EM over a fixed normal quadrature grid; converged=TRUE; logLik=-9431.9263
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1) fixed quadrature distribution, 61 equally spaced nodes on [-6, 6]
+  mml-scipy              marginal maximum likelihood, L-BFGS-B with analytic gradients; converged=True; logLik=-9431.9078; max|free grad|=3.7e-07
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1), integrated out on a 61-node 'gauss-hermite' grid
+  mml-scipy-mirtquad     marginal maximum likelihood, L-BFGS-B with analytic gradients; converged=True; logLik=-9431.9263; max|free grad|=7.4e-07
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1), integrated out on a 61-node 'mirt' grid
+  pyirt-vague            SVI / Trace_ELBO (py-irt's own guide and optimiser)
+                         a>0 constrained: True;  theta metric: theta ~ N(0, 1) fixed prior
+  pyirt-hierarchical     SVI / Trace_ELBO (py-irt's own guide and optimiser)
+                         a>0 constrained: True;  theta metric: theta ~ Normal(mu_theta, 1/u_theta), both learned — NOT identified
+  ours-hierarchical      SVI / Trace_ELBO, mean-field normal guide (posterior means)
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1) fixed prior
+  ours-vague             SVI / Trace_ELBO, mean-field normal guide (posterior means)
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1) fixed prior
+
+all comparisons are on the 59 items mirt fitted (of 60); it drops single-category items and so does mml-scipy
+
+conventions applied:
+  mirt                   slope-intercept (a, d) converted to (a, b) with b = -d/a
+  mml-scipy              slope-intercept (a, d) converted to (a, b) with b = -d/a
+  mml-scipy-mirtquad     slope-intercept (a, d) converted to (a, b) with b = -d/a
+  pyirt-vague            none needed — already a*(theta-b) on theta~N(0,1)
+  pyirt-hierarchical     theta metric was free; standardised with c=sd(theta)=1.9554, d=mean(theta)=-0.1668 (a*=c, b=(b-d)/c, theta=(theta-d)/c)
+  ours-hierarchical      none needed — already a*(theta-b) on theta~N(0,1)
+  ours-vague             none needed — already a*(theta-b) on theta~N(0,1)
+
+reflection check (sign of corr(theta) against the reference):
+  mml-scipy              same mode
+  mml-scipy-mirtquad     same mode
+  pyirt-vague            same mode
+  pyirt-hierarchical     same mode
+  ours-hierarchical      same mode
+  ours-vague             same mode
+
+`b` is compared only on the 50 items where |mirt a| >= 0.35 (difficulty is not identified when a ~ 0)
+
+--- a vs mirt --------------------------------------------------------------------------------
+  mml-scipy                          n=59   r=+1.0000 rho=+1.0000 slope=+1.001 rmse=0.002 max|d|=0.012 (after slope: rmse=0.001 max|d|=0.009)  [shuffled control: mean|r|=0.080 worst=0.201]
+  mml-scipy-mirtquad                 n=59   r=+1.0000 rho=+1.0000 slope=+1.000 rmse=0.000 max|d|=0.000 (after slope: rmse=0.000 max|d|=0.000)  [shuffled control: mean|r|=0.080 worst=0.201]
+  pyirt-vague                        n=59   r=+0.6820 rho=+0.7562 slope=+0.818 rmse=0.589 max|d|=2.765 (after slope: rmse=0.544 max|d|=2.005)  [shuffled control: mean|r|=0.103 worst=0.248]
+  pyirt-hierarchical                 n=59   r=+0.9415 rho=+0.9328 slope=+0.899 rmse=0.250 max|d|=1.341 (after slope: rmse=0.216 max|d|=1.407)  [shuffled control: mean|r|=0.090 worst=0.228]
+  ours-hierarchical                  n=59   r=+0.9620 rho=+0.9487 slope=+0.926 rmse=0.203 max|d|=1.060 (after slope: rmse=0.181 max|d|=1.109)  [shuffled control: mean|r|=0.084 worst=0.210]
+  ours-vague                         n=59   r=+0.9861 rho=+0.9691 slope=+0.972 rmse=0.120 max|d|=0.786 (after slope: rmse=0.115 max|d|=0.805)  [shuffled control: mean|r|=0.081 worst=0.202]
+
+  ... and against the generating truth (a):
+  mirt vs truth                      n=59   r=+0.9508 rho=+0.9219 slope=+0.903 rmse=0.261 max|d|=0.898 (after slope: rmse=0.226 max|d|=0.748)  [shuffled control: mean|r|=0.079 worst=0.239]
+  mml-scipy vs truth                 n=59   r=+0.9510 rho=+0.9219 slope=+0.904 rmse=0.260 max|d|=0.897 (after slope: rmse=0.225 max|d|=0.747)  [shuffled control: mean|r|=0.079 worst=0.238]
+  mml-scipy-mirtquad vs truth        n=59   r=+0.9508 rho=+0.9219 slope=+0.903 rmse=0.261 max|d|=0.898 (after slope: rmse=0.226 max|d|=0.748)  [shuffled control: mean|r|=0.079 worst=0.239]
+  pyirt-vague vs truth               n=59   r=+0.6986 rho=+0.7932 slope=+0.741 rmse=0.670 max|d|=3.397 (after slope: rmse=0.571 max|d|=2.149)  [shuffled control: mean|r|=0.105 worst=0.253]
+  pyirt-hierarchical vs truth        n=59   r=+0.9377 rho=+0.9205 slope=+0.823 rmse=0.337 max|d|=1.387 (after slope: rmse=0.238 max|d|=0.718)  [shuffled control: mean|r|=0.085 worst=0.255]
+  ours-hierarchical vs truth         n=59   r=+0.9406 rho=+0.9335 slope=+0.843 rmse=0.319 max|d|=1.531 (after slope: rmse=0.238 max|d|=0.775)  [shuffled control: mean|r|=0.083 worst=0.253]
+  ours-vague vs truth                n=59   r=+0.9572 rho=+0.9503 slope=+0.883 rmse=0.262 max|d|=1.028 (after slope: rmse=0.209 max|d|=0.500)  [shuffled control: mean|r|=0.080 worst=0.243]
+
+--- b vs mirt --------------------------------------------------------------------------------
+  mml-scipy                          n=50   r=+1.0000 rho=+1.0000 slope=+0.999 rmse=0.003 max|d|=0.015 (after slope: rmse=0.002 max|d|=0.008)  [shuffled control: mean|r|=0.092 worst=0.267]
+  mml-scipy-mirtquad                 n=50   r=+1.0000 rho=+1.0000 slope=+1.000 rmse=0.000 max|d|=0.001 (after slope: rmse=0.000 max|d|=0.001)  [shuffled control: mean|r|=0.092 worst=0.266]
+  pyirt-vague                        n=50   r=+0.8821 rho=+0.9800 slope=+0.202 rmse=1.532 max|d|=8.032 (after slope: rmse=0.203 max|d|=0.794)  [shuffled control: mean|r|=0.100 worst=0.294]
+  pyirt-hierarchical                 n=50   r=+0.9404 rho=+0.9975 slope=+0.707 rmse=0.740 max|d|=5.053 (after slope: rmse=0.481 max|d|=2.369)  [shuffled control: mean|r|=0.098 worst=0.347]
+  ours-hierarchical                  n=50   r=+0.9405 rho=+0.9991 slope=+0.690 rmse=0.756 max|d|=5.143 (after slope: rmse=0.469 max|d|=2.312)  [shuffled control: mean|r|=0.097 worst=0.344]
+  ours-vague                         n=50   r=+0.9652 rho=+0.9997 slope=+0.782 rmse=0.578 max|d|=4.056 (after slope: rmse=0.399 max|d|=2.055)  [shuffled control: mean|r|=0.096 worst=0.344]
+
+  ... and against the generating truth (b):
+  mirt vs truth                      n=50   r=+0.9353 rho=+0.9822 slope=+1.167 rmse=0.713 max|d|=4.517 (after slope: rmse=0.666 max|d|=3.752)  [shuffled control: mean|r|=0.087 worst=0.267]
+  mml-scipy vs truth                 n=50   r=+0.9355 rho=+0.9822 slope=+1.166 rmse=0.711 max|d|=4.502 (after slope: rmse=0.664 max|d|=3.739)  [shuffled control: mean|r|=0.087 worst=0.267]
+  mml-scipy-mirtquad vs truth        n=50   r=+0.9352 rho=+0.9822 slope=+1.167 rmse=0.714 max|d|=4.518 (after slope: rmse=0.666 max|d|=3.753)  [shuffled control: mean|r|=0.087 worst=0.267]
+  pyirt-vague vs truth               n=50   r=+0.9268 rho=+0.9716 slope=+0.265 rmse=1.135 max|d|=3.625 (after slope: rmse=0.162 max|d|=0.624)  [shuffled control: mean|r|=0.099 worst=0.243]
+  pyirt-hierarchical vs truth        n=50   r=+0.9752 rho=+0.9831 slope=+0.915 rmse=0.345 max|d|=1.610 (after slope: rmse=0.313 max|d|=1.219)  [shuffled control: mean|r|=0.093 worst=0.287]
+  ours-hierarchical vs truth         n=50   r=+0.9765 rho=+0.9819 slope=+0.894 rmse=0.343 max|d|=1.599 (after slope: rmse=0.297 max|d|=1.132)  [shuffled control: mean|r|=0.093 worst=0.284]
+  ours-vague vs truth                n=50   r=+0.9770 rho=+0.9818 slope=+0.988 rmse=0.328 max|d|=1.400 (after slope: rmse=0.325 max|d|=1.313)  [shuffled control: mean|r|=0.091 worst=0.280]
+
+--- theta vs mirt --------------------------------------------------------------------------------
+  mml-scipy                          n=300  r=+1.0000 rho=+1.0000 slope=+1.000 rmse=0.002 max|d|=0.004 (after slope: rmse=0.001 max|d|=0.003)  [shuffled control: mean|r|=0.059 worst=0.121]
+  mml-scipy-mirtquad                 n=300  r=+1.0000 rho=+1.0000 slope=+1.000 rmse=0.000 max|d|=0.000 (after slope: rmse=0.000 max|d|=0.000)  [shuffled control: mean|r|=0.059 worst=0.121]
+  pyirt-vague                        n=300  r=+0.9733 rho=+0.9733 slope=+0.644 rmse=0.375 max|d|=1.288 (after slope: rmse=0.145 max|d|=0.448)  [shuffled control: mean|r|=0.061 worst=0.128]
+  pyirt-hierarchical                 n=300  r=+0.9979 rho=+0.9982 slope=+1.042 rmse=0.076 max|d|=0.242 (after slope: rmse=0.065 max|d|=0.207)  [shuffled control: mean|r|=0.059 worst=0.123]
+  ours-hierarchical                  n=300  r=+0.9993 rho=+0.9992 slope=+1.024 rmse=0.044 max|d|=0.151 (after slope: rmse=0.037 max|d|=0.164)  [shuffled control: mean|r|=0.059 worst=0.120]
+  ours-vague                         n=300  r=+0.9996 rho=+0.9994 slope=+1.008 rmse=0.029 max|d|=0.088 (after slope: rmse=0.028 max|d|=0.085)  [shuffled control: mean|r|=0.058 worst=0.122]
+
+  ... and against the generating truth (theta):
+  mirt vs truth                      n=300  r=+0.9493 rho=+0.9532 slope=+0.993 rmse=0.302 max|d|=1.270 (after slope: rmse=0.301 max|d|=1.253)  [shuffled control: mean|r|=0.057 worst=0.136]
+  mml-scipy vs truth                 n=300  r=+0.9494 rho=+0.9532 slope=+0.993 rmse=0.302 max|d|=1.269 (after slope: rmse=0.301 max|d|=1.253)  [shuffled control: mean|r|=0.057 worst=0.136]
+  mml-scipy-mirtquad vs truth        n=300  r=+0.9493 rho=+0.9532 slope=+0.993 rmse=0.302 max|d|=1.270 (after slope: rmse=0.301 max|d|=1.253)  [shuffled control: mean|r|=0.057 worst=0.136]
+  pyirt-vague vs truth               n=300  r=+0.9227 rho=+0.9273 slope=+0.639 rmse=0.419 max|d|=1.218 (after slope: rmse=0.244 max|d|=0.908)  [shuffled control: mean|r|=0.062 worst=0.134]
+  pyirt-hierarchical vs truth        n=300  r=+0.9505 rho=+0.9537 slope=+1.039 rmse=0.313 max|d|=1.319 (after slope: rmse=0.311 max|d|=1.272)  [shuffled control: mean|r|=0.058 worst=0.138]
+  ours-hierarchical vs truth         n=300  r=+0.9493 rho=+0.9524 slope=+1.018 rmse=0.309 max|d|=1.280 (after slope: rmse=0.309 max|d|=1.252)  [shuffled control: mean|r|=0.057 worst=0.135]
+  ours-vague vs truth                n=300  r=+0.9498 rho=+0.9529 slope=+1.002 rmse=0.302 max|d|=1.252 (after slope: rmse=0.302 max|d|=1.233)  [shuffled control: mean|r|=0.057 worst=0.138]
+
+--- implied P(correct) surface, mean |difference| against mirt ------------------------------
+  mml-scipy              mean|dP|=0.0001  median|dP|=0.0000  max|dP|=0.0031  (over 59 items x 300 respondents)
+  mml-scipy-mirtquad     mean|dP|=0.0000  median|dP|=0.0000  max|dP|=0.0000  (over 59 items x 300 respondents)
+  pyirt-vague            mean|dP|=0.1111  median|dP|=0.1013  max|dP|=0.8438  (over 59 items x 300 respondents)
+  pyirt-hierarchical     mean|dP|=0.0160  median|dP|=0.0118  max|dP|=0.1640  (over 59 items x 300 respondents)
+  ours-hierarchical      mean|dP|=0.0092  median|dP|=0.0067  max|dP|=0.2102  (over 59 items x 300 respondents)
+  ours-vague             mean|dP|=0.0070  median|dP|=0.0050  max|dP|=0.0598  (over 59 items x 300 respondents)
+
+--- mirt vs the independent scipy MML (same objective, same grid) ------------------------------
+  mirt logLik                        -9431.926306
+  mml-scipy-mirtquad                 -9431.926306   (rule=mirt, delta=+0.000000)
+  mml-scipy                          -9431.907841   (rule=gauss-hermite, delta=+0.018465)
+  the matching rule is the comparable one; Gauss-Hermite optimises a
+  slightly different approximation to the same integral.
+
+--- py-irt's exported `disc` is a LogNormal MEDIAN, not a mean ------------------------------
+  pyirt-vague            posterior mean / reported median, worst item: 1.0081x
+  pyirt-hierarchical     posterior mean / reported median, worst item: 1.2619x
+
+--- did the unpenalised references converge? --------------------------------------------------
+  mirt                   converged=TRUE, 168 iterations
+  mml-scipy-mirtquad     converged=True, 0 parameter(s) pinned at a bound, 2 iterations
+  mml-scipy              converged=True, 0 parameter(s) pinned at a bound, 58 iterations
+
+======================================================================================================================
+DATASET sparse: 12 respondents x 200 items, 10% missing
+  why: irtcheck's real regime; divergence is expected and intervals are the claim
+======================================================================================================================
+
+estimators:
+  mirt                   marginal maximum likelihood, EM over a fixed normal quadrature grid; converged=FALSE; logLik=-860.6328
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1) fixed quadrature distribution, 61 equally spaced nodes on [-6, 6]
+  mml-scipy              marginal maximum likelihood, L-BFGS-B with analytic gradients; converged=True; logLik=-857.7526; max|free grad|=8.0e-07
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1), integrated out on a 61-node 'gauss-hermite' grid
+  mml-scipy-mirtquad     marginal maximum likelihood, L-BFGS-B with analytic gradients; converged=True; logLik=-859.2764; max|free grad|=2.5e-07
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1), integrated out on a 61-node 'mirt' grid
+  pyirt-vague            SVI / Trace_ELBO (py-irt's own guide and optimiser)
+                         a>0 constrained: True;  theta metric: theta ~ N(0, 1) fixed prior
+  pyirt-hierarchical     SVI / Trace_ELBO (py-irt's own guide and optimiser)
+                         a>0 constrained: True;  theta metric: theta ~ Normal(mu_theta, 1/u_theta), both learned — NOT identified
+  ours-hierarchical      SVI / Trace_ELBO, mean-field normal guide (posterior means)
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1) fixed prior
+  ours-vague             SVI / Trace_ELBO, mean-field normal guide (posterior means)
+                         a>0 constrained: False;  theta metric: theta ~ N(0, 1) fixed prior
+
+all comparisons are on the 183 items mirt fitted (of 200); it drops single-category items and so does mml-scipy
+
+conventions applied:
+  mirt                   slope-intercept (a, d) converted to (a, b) with b = -d/a
+  mml-scipy              slope-intercept (a, d) converted to (a, b) with b = -d/a
+  mml-scipy-mirtquad     slope-intercept (a, d) converted to (a, b) with b = -d/a
+  pyirt-vague            none needed — already a*(theta-b) on theta~N(0,1)
+  pyirt-hierarchical     theta metric was free; standardised with c=sd(theta)=2.4435, d=mean(theta)=-0.0066 (a*=c, b=(b-d)/c, theta=(theta-d)/c)
+  ours-hierarchical      none needed — already a*(theta-b) on theta~N(0,1)
+  ours-vague             none needed — already a*(theta-b) on theta~N(0,1)
+
+reflection check (sign of corr(theta) against the reference):
+  mml-scipy              same mode
+  mml-scipy-mirtquad     same mode
+  pyirt-vague            same mode
+  pyirt-hierarchical     same mode
+  ours-hierarchical      same mode
+  ours-vague             same mode
+
+`b` is compared only on the 160 items where |mirt a| >= 0.35 (difficulty is not identified when a ~ 0)
+
+--- a vs mirt --------------------------------------------------------------------------------
+  mml-scipy                          n=183  r=+0.8562 rho=+0.9916 slope=+1.969 rmse=23.033 max|d|=93.485 (after slope: rmse=16.912 max|d|=87.256)  [shuffled control: mean|r|=0.060 worst=0.193]
+  mml-scipy-mirtquad                 n=183  r=+0.6405 rho=+0.9718 slope=+1.519 rmse=26.326 max|d|=95.864 (after slope: rmse=24.955 max|d|=95.214)  [shuffled control: mean|r|=0.050 worst=0.154]
+  pyirt-vague                        n=183  r=+0.0919 rho=+0.0979 slope=+0.026 rmse=15.738 max|d|=67.823 (after slope: rmse=0.908 max|d|=1.150)  [shuffled control: mean|r|=0.048 worst=0.107]  << NO SIGNAL (does not beat its own shuffled control)
+  pyirt-hierarchical                 n=183  r=+0.7761 rho=+0.8603 slope=+0.103 rmse=14.529 max|d|=64.033 (after slope: rmse=1.166 max|d|=6.731)  [shuffled control: mean|r|=0.055 worst=0.187]
+  ours-hierarchical                  n=183  r=+0.4902 rho=+0.8821 slope=+0.037 rmse=15.568 max|d|=67.441 (after slope: rmse=0.769 max|d|=1.403)  [shuffled control: mean|r|=0.069 worst=0.202]
+  ours-vague                         n=183  r=+0.6464 rho=+0.9443 slope=+0.066 rmse=15.113 max|d|=66.092 (after slope: rmse=1.071 max|d|=2.248)  [shuffled control: mean|r|=0.062 worst=0.174]
+
+  ... and against the generating truth (a):
+  mirt vs truth                      n=183  r=+0.3037 rho=+0.5731 slope=+7.170 rmse=15.600 max|d|=67.386 (after slope: rmse=13.948 max|d|=62.397)  [shuffled control: mean|r|=0.061 worst=0.170]
+  mml-scipy vs truth                 n=183  r=+0.3045 rho=+0.5692 slope=+16.495 rmse=35.422 max|d|=99.398 (after slope: rmse=30.769 max|d|=90.077)  [shuffled control: mean|r|=0.049 worst=0.163]
+  mml-scipy-mirtquad vs truth        n=183  r=+0.2959 rho=+0.5811 slope=+14.899 rmse=34.455 max|d|=99.728 (after slope: rmse=30.649 max|d|=111.505)  [shuffled control: mean|r|=0.053 worst=0.159]
+  pyirt-vague vs truth               n=183  r=+0.0306 rho=+0.0281 slope=+0.758 rmse=0.588 max|d|=1.839 (after slope: rmse=0.520 max|d|=1.180)  [shuffled control: mean|r|=0.054 worst=0.110]  << NO SIGNAL (does not beat its own shuffled control)
+  pyirt-hierarchical vs truth        n=183  r=+0.3631 rho=+0.5624 slope=+1.160 rmse=1.553 max|d|=7.899 (after slope: rmse=1.542 max|d|=7.685)  [shuffled control: mean|r|=0.043 worst=0.155]
+  ours-hierarchical vs truth         n=183  r=+0.5878 rho=+0.5733 slope=+0.725 rmse=0.601 max|d|=1.892 (after slope: rmse=0.515 max|d|=1.659)  [shuffled control: mean|r|=0.058 worst=0.181]
+  ours-vague vs truth                n=183  r=+0.5601 rho=+0.5829 slope=+1.108 rmse=0.848 max|d|=2.484 (after slope: rmse=0.840 max|d|=2.433)  [shuffled control: mean|r|=0.054 worst=0.185]
+
+--- b vs mirt --------------------------------------------------------------------------------
+  mml-scipy                          n=160  r=+0.9936 rho=+0.9978 slope=+1.020 rmse=0.290 max|d|=1.049 (after slope: rmse=0.157 max|d|=1.370)  [shuffled control: mean|r|=0.057 worst=0.162]
+  mml-scipy-mirtquad                 n=160  r=+0.9721 rho=+0.9947 slope=+0.984 rmse=0.372 max|d|=2.044 (after slope: rmse=0.321 max|d|=2.168)  [shuffled control: mean|r|=0.061 worst=0.151]
+  pyirt-vague                        n=160  r=+0.3891 rho=+0.4504 slope=+0.016 rmse=1.411 max|d|=6.285 (after slope: rmse=0.051 max|d|=0.170)  [shuffled control: mean|r|=0.063 worst=0.182]
+  pyirt-hierarchical                 n=160  r=+0.7411 rho=+0.8299 slope=+0.413 rmse=1.057 max|d|=6.491 (after slope: rmse=0.505 max|d|=3.490)  [shuffled control: mean|r|=0.058 worst=0.130]
+  ours-hierarchical                  n=160  r=+0.7788 rho=+0.9069 slope=+0.474 rmse=1.019 max|d|=6.707 (after slope: rmse=0.516 max|d|=3.935)  [shuffled control: mean|r|=0.057 worst=0.176]
+  ours-vague                         n=160  r=+0.8193 rho=+0.9401 slope=+0.704 rmse=0.879 max|d|=8.157 (after slope: rmse=0.666 max|d|=6.478)  [shuffled control: mean|r|=0.057 worst=0.184]
+
+  ... and against the generating truth (b):
+  mirt vs truth                      n=160  r=+0.5690 rho=+0.6587 slope=+0.684 rmse=1.261 max|d|=5.234 (after slope: rmse=1.111 max|d|=5.076)  [shuffled control: mean|r|=0.076 worst=0.189]
+  mml-scipy vs truth                 n=160  r=+0.5676 rho=+0.6620 slope=+0.700 rmse=1.214 max|d|=5.114 (after slope: rmse=1.141 max|d|=5.100)  [shuffled control: mean|r|=0.076 worst=0.172]
+  mml-scipy-mirtquad vs truth        n=160  r=+0.5110 rho=+0.6589 slope=+0.622 rmse=1.284 max|d|=6.366 (after slope: rmse=1.175 max|d|=6.507)  [shuffled control: mean|r|=0.076 worst=0.197]
+  pyirt-vague vs truth               n=160  r=+0.4445 rho=+0.4656 slope=+0.022 rmse=1.101 max|d|=4.324 (after slope: rmse=0.050 max|d|=0.152)  [shuffled control: mean|r|=0.068 worst=0.180]
+  pyirt-hierarchical vs truth        n=160  r=+0.7335 rho=+0.7499 slope=+0.491 rmse=0.768 max|d|=3.172 (after slope: rmse=0.511 max|d|=1.492)  [shuffled control: mean|r|=0.067 worst=0.209]
+  ours-hierarchical vs truth         n=160  r=+0.6945 rho=+0.7291 slope=+0.508 rmse=0.811 max|d|=3.138 (after slope: rmse=0.591 max|d|=2.216)  [shuffled control: mean|r|=0.061 worst=0.183]
+  ours-vague vs truth                n=160  r=+0.6650 rho=+0.7052 slope=+0.687 rmse=0.938 max|d|=3.944 (after slope: rmse=0.867 max|d|=3.266)  [shuffled control: mean|r|=0.061 worst=0.167]
+
+--- theta vs mirt --------------------------------------------------------------------------------
+  mml-scipy                          n=12   r=+0.9983 rho=+0.9580 slope=+1.009 rmse=0.249 max|d|=0.399 (after slope: rmse=0.073 max|d|=0.154)  [shuffled control: mean|r|=0.244 worst=0.573]
+  mml-scipy-mirtquad                 n=12   r=+0.9922 rho=+0.9021 slope=+0.936 rmse=0.279 max|d|=0.463 (after slope: rmse=0.145 max|d|=0.228)  [shuffled control: mean|r|=0.245 worst=0.548]
+  pyirt-vague                        n=12   r=+0.9843 rho=+0.9650 slope=+0.506 rmse=0.741 max|d|=2.063 (after slope: rmse=0.112 max|d|=0.159)  [shuffled control: mean|r|=0.244 worst=0.665]
+  pyirt-hierarchical                 n=12   r=+0.9689 rho=+0.9860 slope=+0.784 rmse=0.574 max|d|=1.463 (after slope: rmse=0.248 max|d|=0.388)  [shuffled control: mean|r|=0.241 worst=0.667]
+  ours-hierarchical                  n=12   r=+0.9746 rho=+0.9510 slope=+0.860 rmse=0.561 max|d|=1.343 (after slope: rmse=0.244 max|d|=0.442)  [shuffled control: mean|r|=0.251 worst=0.702]
+  ours-vague                         n=12   r=+0.9808 rho=+0.9510 slope=+1.047 rmse=0.441 max|d|=0.773 (after slope: rmse=0.257 max|d|=0.425)  [shuffled control: mean|r|=0.251 worst=0.674]
+
+  ... and against the generating truth (theta):
+  mirt vs truth                      n=12   r=+0.9725 rho=+0.9650 slope=+1.138 rmse=0.525 max|d|=1.351 (after slope: rmse=0.288 max|d|=0.649)  [shuffled control: mean|r|=0.239 worst=0.601]
+  mml-scipy vs truth                 n=12   r=+0.9702 rho=+0.9161 slope=+1.147 rmse=0.383 max|d|=1.172 (after slope: rmse=0.303 max|d|=0.688)  [shuffled control: mean|r|=0.238 worst=0.592]
+  mml-scipy-mirtquad vs truth        n=12   r=+0.9537 rho=+0.8811 slope=+1.052 rmse=0.402 max|d|=1.134 (after slope: rmse=0.350 max|d|=0.836)  [shuffled control: mean|r|=0.240 worst=0.545]
+  pyirt-vague vs truth               n=12   r=+0.9800 rho=+0.9720 slope=+0.590 rmse=0.451 max|d|=1.153 (after slope: rmse=0.126 max|d|=0.222)  [shuffled control: mean|r|=0.239 worst=0.677]
+  pyirt-hierarchical vs truth        n=12   r=+0.9714 rho=+0.9441 slope=+0.920 rmse=0.254 max|d|=0.577 (after slope: rmse=0.237 max|d|=0.384)  [shuffled control: mean|r|=0.239 worst=0.683]
+  ours-hierarchical vs truth         n=12   r=+0.9712 rho=+0.9091 slope=+1.002 rmse=0.267 max|d|=0.536 (after slope: rmse=0.259 max|d|=0.596)  [shuffled control: mean|r|=0.247 worst=0.722]
+  ours-vague vs truth                n=12   r=+0.9727 rho=+0.9091 slope=+1.215 rmse=0.386 max|d|=0.735 (after slope: rmse=0.306 max|d|=0.567)  [shuffled control: mean|r|=0.247 worst=0.692]
+
+--- implied P(correct) surface, mean |difference| against mirt ------------------------------
+  mml-scipy              mean|dP|=0.0213  median|dP|=0.0067  max|dP|=0.7241  (over 183 items x 12 respondents)
+  mml-scipy-mirtquad     mean|dP|=0.0416  median|dP|=0.0164  max|dP|=0.7527  (over 183 items x 12 respondents)
+  pyirt-vague            mean|dP|=0.2402  median|dP|=0.2228  max|dP|=0.8160  (over 183 items x 12 respondents)
+  pyirt-hierarchical     mean|dP|=0.1327  median|dP|=0.1216  max|dP|=0.5557  (over 183 items x 12 respondents)
+  ours-hierarchical      mean|dP|=0.1116  median|dP|=0.0931  max|dP|=0.6258  (over 183 items x 12 respondents)
+  ours-vague             mean|dP|=0.0613  median|dP|=0.0409  max|dP|=0.6202  (over 183 items x 12 respondents)
+
+--- mirt vs the independent scipy MML (same objective, same grid) ------------------------------
+  mirt logLik                        -860.632834
+  mml-scipy-mirtquad                 -859.276374   (rule=mirt, delta=+1.356460)
+  mml-scipy                          -857.752571   (rule=gauss-hermite, delta=+2.880263)
+  the matching rule is the comparable one; Gauss-Hermite optimises a
+  slightly different approximation to the same integral.
+
+--- py-irt's exported `disc` is a LogNormal MEDIAN, not a mean ------------------------------
+  pyirt-vague            posterior mean / reported median, worst item: 1.0155x
+  pyirt-hierarchical     posterior mean / reported median, worst item: 3.7414x
+
+--- did the unpenalised references converge? --------------------------------------------------
+  mirt                   converged=FALSE, 5000 iterations
+  mml-scipy-mirtquad     converged=True, 14 parameter(s) pinned at a bound, 366 iterations
+  mml-scipy              converged=True, 10 parameter(s) pinned at a bound, 9958 iterations
+  => the unpenalised marginal likelihood has NO interior maximum on this matrix.
+     Slopes diverge, the EM stops on its iteration cap, and two correct
+     implementations of the same estimator settle in different places along a
+     ridge. This is not a bug in either: it is what maximum likelihood does with
+     12 respondents, and it is the case for estimating this model with priors.
+
