@@ -85,9 +85,14 @@ Leave-one-model-out · 10 models · 600 items · 20 respondents (key model_id+pr
 
 That last table is the headline: a 25-item subset, chosen by a fit that never
 saw the model it was then used to rank, put ten models in almost exactly their
-full-suite order. **Those particular numbers are from synthetic data** — see
-[Does it actually work?](#does-it-actually-work) before you read anything into
-them.
+full-suite order.
+
+> **Those numbers are from synthetic data, and the real ones are much weaker.**
+> On a real 12-model × 3,551-item matrix the same command gives Spearman
+> **+0.662 at n=25** and **+0.867 at n=400** — not +0.994 and +1.000. The
+> synthetic table checks that the code is correct; it is not evidence that
+> twenty-five items are enough for your suite. Read
+> [Does it actually work?](#does-it-actually-work) before quoting either.
 
 Fitting is the slow part, so it is behind a cached artifact: `report`,
 `select` and `validate` read `suite.irt` and are instant (`validate` refits, so
@@ -437,7 +442,8 @@ irtcheck validate suite.irt
 ```
 
 The headline number, and the only command here that is slow — it refits the
-model once per real model, so budget roughly (models × fit time).
+model once per *real model*, so budget roughly (models × fit time) plus
+selection. Twelve models × 3,551 items is twelve refits.
 
 Selecting items using every model and then reporting that the subset reproduces
 the ranking of those same models is circular and worthless: the anchor set was
@@ -462,7 +468,10 @@ seeing.
 
 ## Does it actually work?
 
-Two separate questions, and they deserve separate answers.
+Partly, and the parts matter. The per-item analysis holds up on real data; the
+small-anchor-set claim does not hold up nearly as well as the synthetic number
+suggests. All three answers below are measured, and the least flattering one is
+last rather than omitted.
 
 ### On synthetic data: yes, and that only proves the pipeline is correct
 
@@ -478,6 +487,10 @@ seed 5:
 | 200 | 200   | +1.000   | +1.000      |
 | 400 | 252   | +1.000   | +1.000      |
 
+(n=400 returns 252 items because only that many were eligible in the held-out
+fits — the rest are `insufficient-data`, `ceiling` or `floor`. `select` reports
+the shortfall rather than padding the set.)
+
 **This is synthetic data, and the items really do come from a 2PL because we
 drew them from one.** Real eval items do not. So this table is a correctness
 check on the pipeline — the fitter recovers parameters, selection picks
@@ -491,7 +504,7 @@ README could contain, which is why it is labelled twice.
 ### On real data: a public response matrix exists, and the tool runs on it
 
 HELM publishes its full benchmark output, per instance, to an open Google Cloud
-Storage bucket. Twenty HELM Lite scenarios across every published version give
+Storage bucket. Eighteen HELM Lite scenarios across every published version give
 **95 models × 3,551 items, 323,656 real graded responses**, every item answered
 by at least 87 of the 95 models. Cut to a realistic shortlist — twelve models
 spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 29 s and the
@@ -525,9 +538,51 @@ strong models that an aggregate leaderboard therefore ranks below models
 answering at random. The signal was in *which* responses were wrong, which is
 exactly what an aggregate score discards.
 
-The method, the per-scenario tables, a non-IRT cross-check that agrees, the
-places where it disagrees, the caveats, and the commands to reproduce all of it
-are in [`docs/validation.md`](docs/validation.md).
+**And going from 12 to 95 respondents on the same 3,551 items confirms, on real
+data, the claim this tool's refusal behaviour rests on:**
+
+| items out of 3,551 | 12 models   | 95 models   |
+| ------------------ | ----------- | ----------- |
+| usable for ranking | 1,664 (47%) | 3,272 (92%) |
+| `insufficient-data`| 1,602 (45%) | 225 (6.3%)  |
+| `dead`             | 29 (0.8%)   | 94 (2.6%)   |
+
+Nothing about the items changed. The only thing that changed was how much
+evidence there was about each one. "We cannot tell" became "we can tell", and
+2.6% of the suite turned out to be genuinely dead weight — a claim that was
+simply not available at twelve models. That is `insufficient-data` being a
+statement about your data, demonstrated rather than asserted.
+
+### On real data: the anchor-set claim is much weaker, and you should know that
+
+This is the least flattering measurement here and the one most worth reading.
+`irtcheck validate` on that same twelve-model real matrix:
+
+| n   | items | Spearman | Kendall tau | synthetic Spearman |
+| --- | ----- | -------- | ----------- | ------------------ |
+| 25  | 25    | +0.662   | +0.504      | +0.994             |
+| 50  | 50    | +0.775   | +0.585      | +0.988             |
+| 100 | 100   | +0.629   | +0.455      | +1.000             |
+| 200 | 200   | +0.830   | +0.687      | +1.000             |
+| 400 | 400   | +0.867   | +0.727      | +1.000             |
+
+**On this real matrix a 25-item anchor set does not reproduce the ranking.** Four
+hundred items reach +0.867, which is useful; twenty-five do not, and the curve
+is not even monotone in n. The likely causes — a unidimensional 2PL fitted
+across maths, law and commonsense, twelve respondents being thin for a rank
+correlation, mislabelled responses, and multiple-choice guessing a 2PL has no
+parameter for — are laid out and, where measurable, tested in
+[`docs/validation.md`](docs/validation.md).
+
+This does not invalidate `report` or `select`: the flags, the
+`insufficient-data`/`dead` distinction and the per-scenario finding above all
+behaved as designed on real data. It does mean the anchor-set claim needs
+stating with an honest n. **And it means `validate` is doing its job** — a tool
+that reported +0.99 here would be broken.
+
+The full method, the per-scenario tables, a non-IRT cross-check that agrees,
+the places where it disagrees, and the commands to reproduce all of it are in
+[`docs/validation.md`](docs/validation.md).
 
 ### What we have not done
 
@@ -535,10 +590,13 @@ are in [`docs/validation.md`](docs/validation.md).
   against established implementations is a planned exercise (`crosscheck/`, on a
   3.11 venv, not shipped) and is not finished. Nothing here should be read as
   "agrees with mirt".
-- **No performance claims beyond two measurements.** `fit` took 9.7 s on 20
-  respondents × 600 items and 29.3 s on 12 respondents × 3,551 items, both on
-  CPU at the default 2,000 SVI steps. Those are the only timings we stand
-  behind, and they will not extrapolate cleanly to your matrix.
+- **No performance claims beyond three measurements.** `fit` took 9.7 s on 20
+  respondents × 600 items, 29.3 s on 12 × 3,551, and 23.5 s on 95 × 3,551
+  (323,656 responses) — all on CPU at the default 2,000 SVI steps. Those are
+  the only timings we stand behind. Note the 95-respondent fit was *not* slower
+  than the 12-respondent one on the same items: cost here is dominated by item
+  count and step count, not respondents. It will not extrapolate cleanly to
+  your matrix.
 - **`py-irt` is not a dependency**, despite the design having originally called
   for it: every release from 0.4 onward declares
   `Requires-Python >=3.9,<3.12`, and on 3.12+ `pip install py-irt` silently

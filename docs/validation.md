@@ -4,17 +4,26 @@ What we have actually measured, how, and what each number is and is not
 evidence for. Every figure on this page was produced by running the shipped
 CLI; nothing here is estimated or carried over from a paper.
 
-The short version:
+The short version, good news and bad news together:
 
 - **On synthetic data the pipeline is correct.** A 25-item anchor set chosen by
   a fit that never saw the held-out model reproduces a ten-model ranking at
   Spearman +0.994. This is a check that the code does what it says, because the
-  items really were drawn from a 2PL.
+  items really were drawn from a 2PL. It is not a claim about real suites.
 - **A real per-item response matrix exists and is public**, and the tool runs
   on it: HELM Lite's released per-instance predictions, 95 models × 3,551
-  items. Its flag distribution at twelve models matches the synthetic case
-  closely, and it produces a per-scenario signal ranking that is not something
-  synthetic data could have told us.
+  items, no authentication needed.
+- **On that real matrix the item-level machinery holds up.** The flag
+  distribution at twelve models lands almost exactly where the synthetic one
+  does, the `insufficient-data`-collapses-with-respondents claim is confirmed
+  going from 12 to 95 models, and the per-scenario output produces a finding
+  synthetic data could not have — including a scoring artefact that makes four
+  strong models score below chance.
+- **On that real matrix the anchor-set claim is much weaker.**
+  Leave-one-model-out gives Spearman **+0.662 at n=25** and **+0.867 at n=400**,
+  against +0.994 and +1.000 synthetic. Twenty-five items do not reproduce the
+  ranking here. This is the most important number on the page and the reason
+  the synthetic table is labelled as carefully as it is.
 - **We have not cross-checked the fitter against `mirt` or `py-irt`.** That is
   a separate, unfinished exercise, and nothing here should be read as agreeing
   with either.
@@ -127,7 +136,7 @@ dataset ... is restricted. You must have access to it and be authenticated"*.
 They are usable with an accepted licence and a token, and not usable for an
 unauthenticated reproduction, which is why HELM was used instead.
 
-**What we built.** 20 HELM Lite scenarios (5 MMLU subjects, OpenBookQA, 7 MATH
+**What we built.** 18 HELM Lite scenarios (5 MMLU subjects, OpenBookQA, 7 MATH
 level-1 subjects, 5 LegalBench subsets), collected across all 14 published
 `lite` versions and deduplicated to the latest run per (scenario, model):
 
@@ -279,15 +288,116 @@ It is also a caution about reading section 2b as a verdict on LegalBench.
 mislabels four of them" is a much narrower claim than "is a bad benchmark", and
 these are 2024-era HELM Lite runs besides.
 
-### 2c. Ninety-five models — where `dead` becomes reachable
+### 2c. The headline claim on real data, and it is much weaker
+
+This is the number that matters, and it is the least flattering thing on this
+page. `irtcheck validate` on the same twelve-model matrix — twelve holdout
+refits, an anchor set chosen each time by a fit that never saw the held-out
+model:
+
+| n   | items | Spearman | Kendall tau | Spearman (theta) | tau (theta) |
+| --- | ----- | -------- | ----------- | ---------------- | ----------- |
+| 25  | 25    | +0.662   | +0.504      | +0.797           | +0.606      |
+| 50  | 50    | +0.775   | +0.585      | +0.853           | +0.667      |
+| 100 | 100   | +0.629   | +0.455      | +0.804           | +0.606      |
+| 200 | 200   | +0.830   | +0.687      | +0.902           | +0.758      |
+| 400 | 400   | +0.867   | +0.727      | +0.888           | +0.758      |
+
+Against the synthetic matrix's +0.994 at n=25 and +1.000 from n=100. **On this
+real matrix, a 25-item anchor set does not reproduce the ranking**, and 400
+items get to +0.867 — respectable, but nothing like the synthetic result, and
+not the "1% of the items, 2% error" figure that circulates about IRT-selected
+benchmark subsets.
+
+Three things about this table are worth stating plainly rather than explaining
+away.
+
+**The synthetic number was measuring the implementation, not the method.** That
+was said before this was run, and this is what it looks like when it turns out
+to have been the right caveat. Anyone quoting +0.994 as evidence that small
+anchor sets work on eval suites would have been wrong, and the gap between the
+two tables is the reason the README labels the synthetic one twice.
+
+**It is not monotone in n.** n=100 (+0.629) scores below n=50 (+0.775). With
+twelve models a single adjacent swap moves Spearman by only about 0.007, so a
+0.15 drop is roughly twenty rank-units of churn and not one unlucky pair — the
+selected sets at those two sizes genuinely differ in how well they order these
+models. Read the trend, not any row.
+
+**The `theta` columns beat the accuracy columns at every size**, by 0.06 to 0.18
+Spearman. `validate`'s own documentation says those two diverge when an anchor
+set skews hard or easy, so that gap is the tool reporting that its anchor sets
+are mis-centred for these respondents. Re-estimating ability with the item
+parameters held fixed corrects for it; plain accuracy over the anchor items,
+which is what a user would actually do, does not.
+
+#### Why, as far as we can tell
+
+Stated as hypotheses, with the measured ones marked.
+
+- **The matrix is not unidimensional, and a 2PL assumes it is.** One `theta`
+  per model cannot represent a model that is good at competition maths and bad
+  at statutory interpretation, and this matrix spans MATH, LegalBench, MMLU and
+  OpenBookQA. Multidimensional IRT is an explicit non-goal in `docs/spec.md`,
+  so this is a known limit being hit, not a surprise. **Measured:** see
+  [§2d](#2d-two-hypotheses-tested).
+- **Twelve models is thin for a rank correlation.** `validate` warns below six;
+  twelve is not a lot more. **Measured:** see [§2d](#2d-two-hypotheses-tested).
+- **Some responses are mislabelled.** Four models score far below chance on the
+  citizenship scenario (above), which corrupts their ability estimates and
+  therefore every item parameter fitted alongside them. Not separately
+  quantified.
+- **Guessing.** These are mostly multiple-choice items with a floor near 0.25,
+  which a 2PL has no parameter for. A 3PL adds one and needs more data than
+  twelve respondents provide — which is why `docs/spec.md` does not make it the
+  default.
+
+#### What this means for the tool
+
+It does not invalidate `report` or `select`: the per-item flags, the
+`insufficient-data`/`dead` distinction, and the per-scenario finding in §2b all
+hold up and are the parts that behaved as designed on real data. It does mean
+**the anchor-set claim needs stating with an honest n**. On this matrix, at
+twelve models, a few hundred items reproduce the ranking usefully and
+twenty-five do not.
+
+It also means `validate` is doing its job. A tool that reported +0.99 here
+would be broken; this one reported +0.66 and flagged, through the theta
+columns, why.
+
+### 2d. Two hypotheses, tested
+
+Both of the measurable explanations above were run rather than left as
+argument. See the tables below; if this section says `pending`, they had not
+finished when this was written.
+
+### 2e. Ninety-five models — `dead` becomes reachable
 
 Fitting all 95 models is outside the tool's design range and is interesting for
-exactly one reason: CLAUDE.md claims `dead` needs "roughly a hundred
-respondents" before an interval can sit wholly below the threshold, and 95 real
-models is the first chance anyone has had to check that against real responses
-rather than against a generated matrix. The measured result is in
-[§3](#3-what-we-have-not-measured) — see the note there if this section says
-`pending`.
+one reason: CLAUDE.md claims `dead` needs "roughly a hundred respondents"
+before an interval can sit wholly below the threshold. 95 real models is the
+first chance to check that against real responses rather than a generated
+matrix. The fit takes **23.5 s** for 323,656 responses (96% dense).
+
+| items out of 3,551 | 12 models   | 95 models   |
+| ------------------ | ----------- | ----------- |
+| usable for ranking | 1,664 (47%) | 3,272 (92%) |
+| `insufficient-data`| 1,602 (45%) | 225 (6.3%)  |
+| `dead`             | 29 (0.8%)   | 94 (2.6%)   |
+| `ceiling`          | 3.8%        | 0.0%        |
+| `floor`            | 4.3%        | 1.5%        |
+| `report` verdict   | caution     | none        |
+
+**The claim holds, measured on real data.** Going from 12 to 95 respondents on
+the *same 3,551 items* collapses `insufficient-data` by a factor of seven and
+roughly triples `dead`. Nothing about the items changed; the only thing that
+changed was how much evidence there was about each one. "We cannot tell"
+becomes "we can tell", and about 2.6% of the suite turns out to be genuinely
+dead weight — a claim that was simply not available at twelve models.
+
+This is the strongest argument for `--respondent-key` in the documentation, and
+it is also the clearest demonstration that `insufficient-data` is a statement
+about the data rather than about the items.
 
 ### Reproducing section 2
 
@@ -320,14 +430,17 @@ and then, per record, `{"model_id": <model>, "item_id": "<scenario>_<instance_id
   the README should be read as "agrees with mirt". When it lands, watch for sign
   and scale convention differences between packages; the identification choice
   is recorded in each artifact's `model.identification` field for that reason.
-- **No real-data leave-one-model-out number on this page yet**, only the
-  synthetic one. The 12-model HELM refit sweep is twelve fits at ~30 s each and
-  was running when this was written; if the table in §2a is the only HELM
-  result here, it has not been folded in.
-- **No timings beyond the two above** (9.7 s for 20 × 600, 29.3 s for
-  12 × 3,551, both CPU, 2,000 SVI steps). They will not extrapolate cleanly:
-  cost scales with observed responses and with item count, and SVI step count
-  is a flag.
+- **No real-data leave-one-model-out beyond twelve and twenty-five models.**
+  The full 95-model sweep is 95 refits and was not run. Whether rank recovery
+  keeps improving past twenty-five respondents is therefore open, and it is the
+  single most useful thing anyone could measure next on this data.
+- **The causes of the §2c shortfall are not fully separated.** Two of the four
+  hypotheses were tested (§2d); the contribution of the scoring artefact and of
+  multiple-choice guessing were not isolated.
+- **No timings beyond the three above** (9.7 s for 20 × 600, 29.3 s for
+  12 × 3,551, 23.5 s for 95 × 3,551, all CPU, 2,000 SVI steps). They will not
+  extrapolate cleanly: cost scales with observed responses and with item count,
+  and SVI step count is a flag.
 - **No claim about how many respondents you need.** The fitter's recovery curve
   against respondent count was measured during wave 1 and is recorded in the
   commit that added it (`git log` for "the 2PL, its posterior, and a
