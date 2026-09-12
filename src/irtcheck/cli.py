@@ -82,6 +82,51 @@ def fit(
             help="Carry the response matrix in the artifact. Required by `validate`.",
         ),
     ] = True,
+    # The four below exist where a harness log leaves something genuinely
+    # ambiguous and the adapter would otherwise have to guess. Each has an
+    # IRTCHECK_* environment variable behind it, which is how wave 1 shipped
+    # them while this file was frozen; the flag wins when both are set. They
+    # are flags now because a `--help` a user cannot see is not an interface.
+    model_id: Annotated[
+        str | None,
+        typer.Option(
+            "--model-id",
+            help=(
+                "Model identity for harness logs that do not record one. "
+                "lm-eval sample records carry no model field; this overrides the "
+                "fallbacks (results_*.json, then the containing directory)."
+            ),
+        ),
+    ] = None,
+    metric: Annotated[
+        str | None,
+        typer.Option(
+            "--metric",
+            help=(
+                "Which per-sample metric is the response, when a task logs several "
+                "(e.g. MMLU logs both acc and acc_norm). Default order: acc, "
+                "exact_match, em, acc_norm."
+            ),
+        ),
+    ] = None,
+    lmeval_filter: Annotated[
+        str | None,
+        typer.Option(
+            "--lmeval-filter",
+            help=(
+                "Which lm-eval answer-extraction filter to keep. Logs record one row "
+                "per (doc, filter), so gsm8k writes every doc under both strict-match "
+                "and flexible-extract — the same item scored twice, not two items."
+            ),
+        ),
+    ] = None,
+    scorer: Annotated[
+        str | None,
+        typer.Option(
+            "--scorer",
+            help="Which Inspect scorer to read, when a sample carries several.",
+        ),
+    ] = None,
 ) -> None:
     """Fit a 2PL to a response matrix and cache the result."""
     from irtcheck.commands import fit as impl
@@ -96,6 +141,10 @@ def fit(
         seed=seed,
         device=device,
         embed_responses=embed_responses,
+        model_id=model_id,
+        metric=metric,
+        lmeval_filter=lmeval_filter,
+        scorer=scorer,
     )
 
 

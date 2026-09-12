@@ -25,6 +25,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import typer.main
 from typer.testing import CliRunner
 
 from irtcheck.artifact import SCHEMA_VERSION, IrtFit
@@ -96,24 +97,96 @@ def test_root_help_and_version():
     assert version.exit_code == 0 and "irtcheck" in version.output
 
 
+def command_flags() -> dict[str, dict[str, tuple[str, bool, str]]]:
+    """{command: {flag: (type name, is a boolean switch, help text)}}, from click.
+
+    This walks the real, parsed CLI surface. The version of this test written
+    in wave 0 read `command.callback.__annotations__` and looked for
+    `__metadata__` on each value, and it never found a single flag — so it
+    passed vacuously through the whole of wave 1, which is exactly the period
+    it existed to police. Two independent reasons it could not work:
+
+      - `cli.py` has `from __future__ import annotations`, so every annotation
+        is a *string* and has no `__metadata__` at all. Resolving them needs
+        `typing.get_type_hints(..., include_extras=True)`.
+      - even resolved, typer's `OptionInfo.param_decls` is usually empty here:
+        in the Annotated style a lone positional argument to `typer.Option` is
+        taken as `default`, and the flag name is derived from the parameter
+        name instead. `typer.Option("-o", "--output")` records `--output`;
+        `typer.Option("--respondent-key")` records nothing.
+
+    Asking click for the command it actually built sidesteps both.
+    """
+    group = typer.main.get_command(app)
+    out: dict[str, dict[str, tuple[str, bool, str]]] = {}
+    for name, command in group.commands.items():
+        out[name] = {
+            opt: (
+                getattr(param.type, "name", str(param.type)),
+                bool(getattr(param, "is_flag", False) or getattr(param, "secondary_opts", [])),
+                (param.help or "").strip(),
+            )
+            for param in command.params
+            for opt in param.opts
+            if opt.startswith("--")
+        }
+    return out
+
+
+def test_the_flag_inventory_is_not_empty():
+    """Guards the guard: the test below is only meaningful if it sees flags.
+
+    Its predecessor silently saw none for the whole of wave 1. Any future
+    change to how the surface is introspected fails here, loudly, instead of
+    quietly reducing the next test to a no-op.
+    """
+    flags = command_flags()
+    assert set(flags) == EXPECTED_COMMANDS
+    assert all(len(v) >= 3 for v in flags.values()), flags
+    assert "--respondent-key" in flags["fit"]
+
+
 def test_no_two_commands_disagree_about_a_flag():
-    """`--seed` may appear on several commands, but it must mean the same
-    thing. Two agents giving one flag two meanings is invisible in review of
-    either branch alone."""
-    meanings: dict[str, set[str]] = {}
-    for command in app.registered_commands:
-        name = command.name or command.callback.__name__
-        for param in command.callback.__annotations__.values():
-            metadata = getattr(param, "__metadata__", ())
-            for option in metadata:
-                for decl in getattr(option, "param_decls", ()) or ():
-                    if decl.startswith("--"):
-                        meanings.setdefault(decl, set()).add(
-                            f"{name}:{(getattr(option, 'help', '') or '')[:40]}"
-                        )
-    for flag, uses in meanings.items():
-        helps = {u.split(":", 1)[1] for u in uses}
-        assert len(helps) == 1, f"{flag} is documented differently across commands: {uses}"
+    """`--seed` may appear on several commands, but it must mean the same thing.
+    Two agents giving one flag two meanings is invisible in review of either
+    branch alone.
+
+    The check is on *type and arity*, not on help text. Once this test started
+    working it immediately flagged four cases — `--output`, `--seed`,
+    `--epochs`, `--json` — and all four are legitimate: same role, different
+    object. `select --output` writes item ids, `fit --output` writes an
+    artifact; `validate --epochs` is "SVI steps per holdout refit" because
+    there are several fits. Demanding identical prose would force those to be
+    reworded worse, so the rule is the one that catches a real collision: the
+    same flag taking an int on one command and a path on another, or being a
+    switch here and a value there. A wording difference is specialisation; a
+    type difference means two agents meant different things.
+    """
+    signatures: dict[str, dict[str, tuple[str, bool]]] = {}
+    for command, flags in command_flags().items():
+        for flag, (type_name, is_switch, _help) in flags.items():
+            signatures.setdefault(flag, {})[command] = (type_name, is_switch)
+
+    for flag, uses in signatures.items():
+        distinct = set(uses.values())
+        assert len(distinct) == 1, (
+            f"{flag} has a different type or arity across commands: "
+            + "; ".join(
+                f"{c}={t}{' (switch)' if s else ''}" for c, (t, s) in sorted(uses.items())
+            )
+        )
+
+
+def test_every_flag_is_documented():
+    """A flag with no help text is undiscoverable in `--help`, which is the
+    same failure as shipping it as an environment variable."""
+    undocumented = [
+        f"{command} {flag}"
+        for command, flags in command_flags().items()
+        for flag, (_type, _switch, help_text) in flags.items()
+        if not help_text and flag != "--help"
+    ]
+    assert not undocumented, f"flags with no help text: {undocumented}"
 
 
 def test_unimplemented_commands_name_their_owning_brief():

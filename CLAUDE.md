@@ -85,19 +85,63 @@ someone building right now.
 **Avoid stacked PRs.** A chain of PRs based on each other can merge into their
 intermediate branches instead of `master` and be orphaned on branch delete.
 
+**`gh pr edit` does not work on this repo. Use `gh api -X PATCH
+repos/{owner}/{repo}/pulls/{number}` instead.** It exits 1 with only a
+Projects-classic GraphQL deprecation notice and no other output — and it does
+*not* write the change. The danger is the silence: a `--body-file` update looks
+like it succeeded, so read the body back if you must use it. Two agents hit
+this independently during wave 1.
+
+**`master` moves faster than CI completes.** With four agents merging into one
+wave, a branch can go stale between `git push` and its checks going green —
+this happened twice in wave 1. Re-check `gh pr view <n> --json
+mergeStateStatus` immediately before merging, not from an earlier read. The
+guard denies a stale merge, so the cost of forgetting is a denial, not a bad
+merge; but the denial is easier to understand if you were expecting it.
+
 **Fixtures are namespaced per brief.** Only wave 0 writes `tests/fixtures/`
 directly; an adapter's fixtures go in `tests/fixtures/adapters/`. Two agents
 both writing `tests/fixtures/matrix.jsonl` with different contents is a merge
 that succeeds and a test suite that means nothing.
 
-## Two files are frozen
+## Two files were frozen for wave 1
 
 `src/irtcheck/cli.py` and `pyproject.toml` were written in wave 0 with the
 whole command surface and the whole dependency set already in them, precisely
-so that no wave-1 agent has to touch either. Every command is registered and
+so that no wave-1 agent had to touch either. Every command is registered and
 every flag declared; each delegates to a module in `commands/` owned by exactly
-one brief. Changing them is a deliberate single-owner change, not something
-done in passing — say so in the PR body if you must.
+one brief. **Wave 1 is merged and the freeze is lifted**, but changing them is
+still a deliberate single-owner change rather than something done in passing —
+say so in the PR body, and never edit either while a wave is in flight.
+
+The freeze had a cost worth remembering: the adapters needed four per-format
+overrides and could not add flags, so they shipped as `IRTCHECK_*` environment
+variables. They are flags now (`--model-id`, `--metric`, `--lmeval-filter`,
+`--scorer`) and the variables still work, with the flag winning when both are
+set. See `ADAPTER_OVERRIDES` in `commands/fit.py` for why the values travel
+through `os.environ` rather than as arguments — the readers take `read(path)`
+and nothing else, and that narrow signature is what lets `io/__init__.py`
+discover adapters without a shared dispatch table.
+
+## Introspecting the CLI surface
+
+**Read the built click command — `typer.main.get_command(app).commands` — not
+`callback.__annotations__`.** Two independent things defeat the obvious
+approach, and together they made `test_no_two_commands_disagree_about_a_flag`
+pass vacuously through the whole of wave 1, the exact period it existed to
+police:
+
+- `cli.py` has `from __future__ import annotations`, so every annotation is a
+  *string* with no `__metadata__`. Resolving needs
+  `typing.get_type_hints(..., include_extras=True)`.
+- even resolved, typer's `OptionInfo.param_decls` is usually empty: in the
+  `Annotated` style a lone positional argument to `typer.Option` is taken as
+  `default` and the flag name is derived from the parameter name.
+  `typer.Option("-o", "--output")` records `--output`;
+  `typer.Option("--respondent-key")` records nothing.
+
+`test_the_flag_inventory_is_not_empty` now guards the guard, so a future change
+to the introspection fails loudly instead of silently disabling the check.
 
 ## The merge-time race check
 

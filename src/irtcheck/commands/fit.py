@@ -12,7 +12,9 @@ machine that has never installed torch. See CLAUDE.md → The lazy torch boundar
 
 from __future__ import annotations
 
+import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +46,39 @@ PROGRESS_EVERY = 25
 # cli.py is what a user actually sees.
 DEFAULT_KEY_SPEC = ",".join(DEFAULT_RESPONDENT_KEY)
 
+# Adapter overrides, and the environment variable each one sets.
+#
+# The readers take `read(path)` and nothing else — that narrow signature is what
+# lets io/__init__.py discover adapters by walking its own directory, which in
+# turn is what let three adapters be written in parallel without touching a
+# shared dispatch table. Widening it to thread options through would trade that
+# away for four rarely-used values, so the flags set the environment variables
+# the adapters already read instead.
+#
+# The variables came first: wave 1 shipped them because cli.py was frozen. They
+# stay supported, and the flag wins when both are set.
+ADAPTER_OVERRIDES = {
+    "model_id": "IRTCHECK_LMEVAL_MODEL_ID",
+    "metric": "IRTCHECK_LMEVAL_METRIC",
+    "lmeval_filter": "IRTCHECK_LMEVAL_FILTER",
+    "scorer": "IRTCHECK_INSPECT_SCORER",
+}
+
+
+@contextmanager
+def _environment(values: dict[str, str]):
+    """Apply `values` to os.environ for the duration of the block, then restore."""
+    previous = {name: os.environ.get(name) for name in values}
+    os.environ.update(values)
+    try:
+        yield
+    finally:
+        for name, old in previous.items():
+            if old is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = old
+
 
 def run(
     *,
@@ -56,6 +91,10 @@ def run(
     seed: int = 0,
     device: str = "cpu",
     embed_responses: bool = True,
+    model_id: str | None = None,
+    metric: str | None = None,
+    lmeval_filter: str | None = None,
+    scorer: str | None = None,
     **_: Any,
 ) -> None:
     """Entry point called by cli.fit.
@@ -70,9 +109,25 @@ def run(
     # to read and impossible to grep.
     console = Console(stderr=True, highlight=False)
 
+    overrides = {
+        ADAPTER_OVERRIDES[name]: value
+        for name, value in (
+            ("model_id", model_id),
+            ("metric", metric),
+            ("lmeval_filter", lmeval_filter),
+            ("scorer", scorer),
+        )
+        if value is not None
+    }
+
     try:
         key = parse_respondent_key(respondent_key)
-        matrix = build_matrix(read_any(responses, fmt=fmt), respondent_key=key)
+        # Scoped to the read, not set for the rest of the process. In the CLI
+        # the difference is invisible because the process exits, but leaking
+        # into os.environ made one test's --lmeval-filter poison every later
+        # test in the same session.
+        with _environment(overrides):
+            matrix = build_matrix(read_any(responses, fmt=fmt), respondent_key=key)
     except (MatrixError, RecordError) as exc:
         console.print(f"[red]error:[/red] {exc}")
         raise typer.Exit(1) from exc
