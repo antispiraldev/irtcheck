@@ -137,15 +137,21 @@ def test_json_emits_nothing_but_json(healthy_path):
     json.loads(result.output)
 
 
-# -- flags this brief does not implement --------------------------------------
+# -- --html -------------------------------------------------------------------
+#
+# Was "flags this brief does not implement": --html exited 2 and named wave 2,
+# brief E. That brief has landed, so the stub assertion is gone and the flag's
+# behaviour is asserted in tests/test_html.py, which owns the renderer. Kept
+# here: that the terminal report still prints when --html is also passed, which
+# is what "Also write a self-contained HTML report here" promises.
 
 
-def test_html_says_it_is_wave_two_rather_than_writing_a_file(healthy_path, tmp_path):
+def test_html_writes_the_file_and_still_prints_the_table(healthy_path, tmp_path):
     target = tmp_path / "out.html"
-    result = invoke(healthy_path, "--html", target)
-    assert result.exit_code == 2
-    assert "wave 2" in flat(result.output)
-    assert not target.exists()
+    result = invoke(healthy_path, "--html", target, "--limit", "3")
+    assert result.exit_code == 0, result.output
+    assert target.exists()
+    assert "item" in flat(result.output)
 
 
 # -- failure modes ------------------------------------------------------------
