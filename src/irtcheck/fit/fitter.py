@@ -9,10 +9,23 @@ a caller has to know how to finish.
 Stochastic variational inference rather than MCMC: a 4000-item suite is ~8000
 latent parameters, NUTS on that is minutes-to-hours, and the intervals this
 tool acts on are coarse decisions ("does the interval on a_i contain zero")
-rather than tail probabilities. Mean-field SVI understates posterior
-correlations, and the honest consequence is that intervals here are, if
-anything, a little narrow — which makes `insufficient-data` conservative, never
-over-eager.
+rather than tail probabilities.
+
+Mean-field SVI understates posterior correlations, so its marginals are too
+**narrow** — and for this tool that is the dangerous direction, not the safe
+one. `insufficient-data` fires when the interval on `a_i` spans zero, so a
+narrower interval makes the tool refuse *less*: it claims a discrimination it
+has not earned. An earlier version of this docstring asserted the opposite,
+that narrow intervals made the flag "conservative, never over-eager". That was
+wrong, and measurement is what settled it: the nominal 95% variational interval
+on `a` covered the true value 87.5% of the time at 15 respondents, 84.3% at 60
+and 80.6% at 300, against a nominal 95%.
+
+So the point estimates come from SVI and the item **intervals do not**. They
+are computed from the conditional information matrix instead, which carries the
+`a`-`b` correlation the guide drops and lifts coverage to 91-93%. See
+fit/intervals.py for the derivation and what it still does not fix, and
+tests/test_intervals.py, which measures the claim rather than restating it.
 """
 
 from __future__ import annotations
@@ -29,6 +42,7 @@ from pyro.optim import ClippedAdam
 from irtcheck import __version__
 from irtcheck.artifact import EmbeddedResponses, IrtFit, Posterior, utc_now
 from irtcheck.fit.flags import flag_counts, item_flags
+from irtcheck.fit.intervals import item_posteriors, prior_precisions
 from irtcheck.fit.model import (
     PRIORS_HIERARCHICAL,
     ModelError,
@@ -53,6 +67,9 @@ POSTERIOR_SAMPLES = 2000
 # The ELBO trace is a diagnostic, not a dataset: past this many points it is
 # thinned, so a 50k-epoch fit does not put 50k floats in every artifact.
 MAX_ELBO_HISTORY = 2000
+# Recorded in diagnostics. Artifacts written before the item intervals moved off
+# the variational marginals carry no such key, which is how they are told apart.
+INTERVAL_METHOD = "conditional-information"
 
 
 class FitError(RuntimeError):
@@ -119,8 +136,22 @@ def fit_2pl(
     elapsed = time.perf_counter() - started
 
     theta = posterior_for(guide, "theta", n_samples=POSTERIOR_SAMPLES, data=data)
-    a = posterior_for(guide, "a", n_samples=POSTERIOR_SAMPLES, data=data)
-    b = posterior_for(guide, "b", n_samples=POSTERIOR_SAMPLES, data=data)
+
+    # The variational means, then the item intervals recomputed from curvature.
+    # posterior_for is still what supplies the means — this replaces the width
+    # only, and only for `a` and `b`. See fit/intervals.py.
+    a_svi = posterior_for(guide, "a", n_samples=POSTERIOR_SAMPLES, data=data)
+    b_svi = posterior_for(guide, "b", n_samples=POSTERIOR_SAMPLES, data=data)
+    hyperparameters = _hyperparameters(guide, data, priors)
+    precision_a, precision_b = prior_precisions(hyperparameters, priors=priors)
+    a, b = item_posteriors(
+        data,
+        a_mean=a_svi.mean,
+        b_mean=b_svi.mean,
+        theta_mean=theta.mean,
+        precision_a=precision_a,
+        precision_b=precision_b,
+    )
 
     # The reflection check. Initialising the guide at a = +1 should always land
     # in the positive mode, but "should" is not a property anyone can read off
@@ -160,6 +191,7 @@ def fit_2pl(
             matrix=matrix,
             flags=flags,
             reflected=reflected,
+            hyperparameters=hyperparameters,
         ),
         passthrough={k: dict(v) for k, v in matrix.passthrough.items()},
         responses=(
@@ -174,6 +206,28 @@ def fit_2pl(
     )
     fit.validate()
     return fit
+
+
+def _hyperparameters(guide, data, priors: str) -> dict[str, float]:
+    """The population scales the fit settled on, as plain floats.
+
+    Recorded in diagnostics and read by intervals.prior_precisions, which needs
+    the prior precision every item falls back to. They were previously nowhere
+    in the artifact, which cost the wave-2 cross-check a whole second fit just
+    to recover them: crosscheck/run_gridpost.py refits with the same seed and
+    reads them off the guide, checking that the refit reproduced the artifact
+    because it has no other way to know.
+
+    Empty under vague priors, where nothing is learned — the scales are the
+    constants model.py declares, and prior_precisions reads them from there.
+    """
+    if priors != PRIORS_HIERARCHICAL:
+        return {}
+    median = guide.median(data)
+    return {
+        name: float(median[name].detach().cpu())
+        for name in ("sigma_a", "mu_b", "sigma_b")
+    }
 
 
 def canonical_sign(a: Posterior) -> int:
@@ -230,6 +284,7 @@ def _diagnostics(
     matrix,
     flags: list[list[str]],
     reflected: bool,
+    hyperparameters: dict[str, float],
 ) -> dict:
     """Everything needed to answer "did this fit converge, and on what?".
 
@@ -261,4 +316,11 @@ def _diagnostics(
         "n_items": int(matrix.n_items),
         "density": float(matrix.density),
         "flag_counts": flag_counts(flags),
+        # The learned population scales, so nothing downstream has to refit to
+        # recover them. Empty under vague priors; see _hyperparameters.
+        "hyperparameters": hyperparameters,
+        # Which method produced the reported widths. The means are variational
+        # either way; this says where the intervals came from, so an artifact
+        # written before the change is distinguishable from one written after.
+        "interval_method": INTERVAL_METHOD,
     }

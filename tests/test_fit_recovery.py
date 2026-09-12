@@ -189,19 +189,88 @@ def test_abilities_stay_on_the_prior_scale(thin_fit):
 # -- flags -------------------------------------------------------------------
 
 
-def test_dead_items_are_the_ones_refused_at_fifteen_respondents(thin_fit):
-    """The refusal path, checked against which items are *actually* flat.
+# True `a` bands used to check that refusal tracks discrimination rather than
+# just firing a lot. Coarse on purpose: the point is the ordering.
+A_BANDS = ((0.0, 0.3), (0.3, 0.8), (0.8, 1.2), (1.2, float("inf")))
 
-    At 15 respondents most low-information items land in insufficient-data
-    rather than dead, and this asserts the flag lands on the right items far
-    more often than on the wrong ones — not that it is decisive, which at this
-    respondent count it cannot honestly be."""
+
+def refusal_by_band(fit, true_a) -> list[float]:
+    """What fraction of each true-discrimination band came back refused."""
+    refused = np.array([FLAG_INSUFFICIENT_DATA in flags for flags in fit.flags])
+    out = []
+    for low, high in A_BANDS:
+        inside = (true_a >= low) & (true_a < high)
+        out.append(float(refused[inside].mean()) if inside.any() else float("nan"))
+    return out
+
+
+def test_refusal_tracks_discrimination_at_fifteen_respondents(thin_fit):
+    """The flag lands on the right items — but at 15 respondents it lands on
+    nearly all of them, and that is the honest answer rather than a defect.
+
+    This test used to assert a 20-point gap between the refusal rate on
+    genuinely flat items and on genuinely live ones. It passed only because the
+    intervals were too narrow: once they cover the truth 93% of the time
+    instead of 87%, the measured gap at 15 respondents is 0.159-0.220 across
+    seeds, with an AUC of 0.58-0.61 for "refused" as a predictor of "flat".
+    Refusal by true `a` comes out monotone but shallow —
+
+        a < 0.3   98%        a in [0.8, 1.2)   83%
+        a in [0.3, 0.8)  92%     a > 1.2       66%
+
+    — so a third of the clearly-live items are refused too. That is what a
+    calibrated interval says about fifteen binary responses per item, and it
+    agrees with the recovery ceiling already documented at the top of this file:
+    the Bayes-optimal estimator only reaches 0.52 correlation with the true `a`
+    here, and a tool that recovers `a` that poorly has no business claiming to
+    know which items discriminate.
+
+    So what is asserted at 15 respondents is the *ordering* — more
+    discrimination, less refusal, with the flat band nearly all refused. The
+    decisiveness claim moved to test_refusal_becomes_decisive_with_respondents,
+    at the respondent count where it is true. See fit/intervals.py.
+    """
     fit, truth = thin_fit
     true_a, _, _ = align(fit, truth)
     refused = np.array([FLAG_INSUFFICIENT_DATA in flags for flags in fit.flags])
     flat = true_a < 0.3
-    assert refused[flat].mean() > 0.8
-    assert refused[flat].mean() > refused[~flat].mean() + 0.2
+
+    assert refused[flat].mean() > 0.9, (
+        "items that genuinely do not discriminate must come back refused at 15 "
+        f"respondents; only {refused[flat].mean():.1%} did"
+    )
+    by_band = refusal_by_band(fit, true_a)
+    assert by_band[0] > by_band[-1] + 0.15, (
+        f"refusal does not fall with true discrimination: {by_band}. The flag "
+        "would be firing on item count rather than on evidence."
+    )
+    assert refused[flat].mean() > refused[~flat].mean(), (
+        f"flat items ({refused[flat].mean():.1%}) must be refused more often "
+        f"than live ones ({refused[~flat].mean():.1%})"
+    )
+
+
+def test_refusal_becomes_decisive_with_respondents(deep_fit):
+    """At 300 respondents the flag is sharp, which is where the claim belongs.
+
+    Measured on this fixture: every item with true `a` above 0.3 is ranked
+    rather than refused, and 73% of the genuinely flat ones are refused — the
+    remainder reaching `dead` instead, which is the flag that needs about a
+    hundred respondents to become available at all (CLAUDE.md, Conventions).
+    """
+    fit, truth = deep_fit
+    true_a, _, _ = align(fit, truth)
+    refused = np.array([FLAG_INSUFFICIENT_DATA in flags for flags in fit.flags])
+    flat = true_a < 0.3
+
+    assert refused[flat].mean() > refused[~flat].mean() + 0.5, (
+        f"at 300 respondents the flag should separate flat from live items "
+        f"decisively; got {refused[flat].mean():.1%} vs {refused[~flat].mean():.1%}"
+    )
+    assert refused[~flat].mean() < 0.1, (
+        f"{refused[~flat].mean():.1%} of genuinely discriminating items were "
+        "refused at 300 respondents, where the data can tell"
+    )
 
 
 def test_refusal_recedes_as_respondents_are_added(thin_fit, deep_fit):
