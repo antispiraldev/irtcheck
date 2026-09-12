@@ -10,8 +10,14 @@ is invariant under two transformations, and every package resolves them
 differently:
 
   - **reflection**: (a, b, theta) -> (-a, -b, -theta) is the identity. Ours
-    resolves it toward positive mean `a`; mirt and py-irt both put `a` on a
-    positive-constrained scale, so they cannot enter the mirrored mode at all.
+    resolves it toward positive mean `a`. py-irt draws `a` from a LogNormal and
+    so cannot enter the mirrored mode at all. **mirt does not constrain the
+    slope** — measured, not assumed: its default 2PL returned negative slopes on
+    both datasets here (2 of 59 items on dense, 22 of 183 on sparse), so like us
+    it resolves the reflection by where its optimiser starts rather than by
+    construction. That makes mirt, not py-irt, the reference whose
+    identification convention matches ours, and it is why `reflection_agrees`
+    decides on theta rather than on the sign of `a`.
   - **scale and location**: (a, b, theta) -> (a/c, c*b + d, c*theta + d) is
     also the identity. Fixed by pinning the theta metric. Ours and mirt and
     py-irt-with-vague-priors all pin it the same way, theta ~ N(0, 1) as a
