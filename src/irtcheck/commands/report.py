@@ -18,17 +18,8 @@ import typer
 from rich.console import Console
 
 from irtcheck.artifact import ArtifactError, IrtFit
+from irtcheck.html import write_html
 from irtcheck.report import DEFAULT_SORT, ReportError, build_report, render
-
-# --html is declared in the frozen cli.py but the HTML report is wave 2
-# (agent E, docs/build-plan.html). Failing loudly beats writing a file that
-# is not the report the flag promises.
-HTML_NOT_YET = (
-    "--html is not implemented yet: the self-contained HTML report, with the test "
-    "information curve drawn against the respondents' ability distribution, is wave 2 "
-    "(see docs/build-plan.html, brief E). The terminal report and --json are complete; "
-    "re-run without --html."
-)
 
 
 def run(
@@ -42,10 +33,6 @@ def run(
     console = Console()
     errors = Console(stderr=True)
 
-    if html is not None:
-        errors.print(f"[bold red]error:[/] {HTML_NOT_YET}")
-        raise typer.Exit(2)
-
     try:
         fit = IrtFit.load(artifact)
     except ArtifactError as exc:
@@ -57,6 +44,10 @@ def run(
     except ReportError as exc:
         errors.print(f"[bold red]error:[/] {exc}")
         raise typer.Exit(2) from exc
+
+    if html is not None:
+        write_html(fit, html, sort=sort, limit=limit, source=str(artifact))
+        errors.print(f"[dim]wrote {html}[/]")  # stderr: --json stays pipeable
 
     if as_json:
         # print(), not console.print(): rich would wrap and highlight it, and
