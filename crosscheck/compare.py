@@ -369,7 +369,7 @@ def report_dataset(dataset: str, out: list[str]) -> dict:
                 "beats_shuffled_control": checked.beats_control,
             }
 
-    results["probability_surface"] = report_probability_surface(dataset, reconciled, say)
+    results["probability_surface"] = report_probability_surface(reconciled, say)
     results["mml_vs_mirt"] = report_mml_vs_mirt(available, say)
     results["pyirt_median_vs_mean"] = report_pyirt_export(available, say)
     results["both_converged"] = report_convergence(available, say)
@@ -412,7 +412,7 @@ def report_convergence(available: dict, say) -> bool:
     return both
 
 
-def report_probability_surface(dataset: str, reconciled: dict, say) -> dict:
+def report_probability_surface(reconciled: dict, say) -> dict:
     """Compare fits by what they predict, not by how they are written down.
 
     The invariance-proof comparison. Two parameter sets can differ by any
