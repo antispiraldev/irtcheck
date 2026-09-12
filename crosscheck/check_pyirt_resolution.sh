@@ -40,7 +40,12 @@ PY
 
 echo
 echo "== 2. and the current release cannot be installed here at all: =="
-"$TMP/venv/bin/pip" install --dry-run 'py-irt==0.7.1' 2>&1 | grep -E "^ERROR: (Could not find|No matching)" | sed 's/^/   /'
+# pip colours its errors, so the ERROR: is preceded by an escape sequence and
+# cannot be anchored to the start of the line. Strip the codes first.
+"$TMP/venv/bin/pip" install --dry-run 'py-irt==0.7.1' 2>&1 \
+  | sed 's/\x1b\[[0-9;]*m//g' \
+  | grep -E "ERROR: (Could not find|No matching)" \
+  | sed 's/^/   /'
 
 echo
 echo "== 3. what 0.1.1's 2PL fit() actually does with its result =="
