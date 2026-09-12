@@ -568,11 +568,12 @@ This is the least flattering measurement here and the one most worth reading.
 
 **On this real matrix a 25-item anchor set does not reproduce the ranking.** Four
 hundred items reach +0.867, which is useful; twenty-five do not, and the curve
-is not even monotone in n. The likely causes — a unidimensional 2PL fitted
+is not even monotone in n. Four candidate causes — a unidimensional 2PL fitted
 across maths, law and commonsense, twelve respondents being thin for a rank
 correlation, mislabelled responses, and multiple-choice guessing a 2PL has no
-parameter for — are laid out and, where measurable, tested in
-[`docs/validation.md`](docs/validation.md).
+parameter for — are laid out in [`docs/validation.md`](docs/validation.md) **as
+hypotheses, none of them measured**, along with how two of them could be tested
+on the same data.
 
 This does not invalidate `report` or `select`: the flags, the
 `insufficient-data`/`dead` distinction and the per-scenario finding above all

@@ -333,16 +333,17 @@ which is what a user would actually do, does not.
 
 #### Why, as far as we can tell
 
-Stated as hypotheses, with the measured ones marked.
+Stated as hypotheses, because that is what they are. None of the four is
+measured here; two of them could be, on this same data, and §2d says how.
 
 - **The matrix is not unidimensional, and a 2PL assumes it is.** One `theta`
   per model cannot represent a model that is good at competition maths and bad
   at statutory interpretation, and this matrix spans MATH, LegalBench, MMLU and
   OpenBookQA. Multidimensional IRT is an explicit non-goal in `docs/spec.md`,
-  so this is a known limit being hit, not a surprise. **Measured:** see
-  [§2d](#2d-two-hypotheses-tested).
+  so this is a known limit being hit, not a surprise. **Testable on this data:**
+  see [§2d](#2d-two-of-those-hypotheses-are-testable-on-this-data).
 - **Twelve models is thin for a rank correlation.** `validate` warns below six;
-  twelve is not a lot more. **Measured:** see [§2d](#2d-two-hypotheses-tested).
+  twelve is not a lot more. **Testable on this data:** see [§2d](#2d-two-of-those-hypotheses-are-testable-on-this-data).
 - **Some responses are mislabelled.** Four models score far below chance on the
   citizenship scenario (above), which corrupts their ability estimates and
   therefore every item parameter fitted alongside them. Not separately
@@ -365,11 +366,30 @@ It also means `validate` is doing its job. A tool that reported +0.99 here
 would be broken; this one reported +0.66 and flagged, through the theta
 columns, why.
 
-### 2d. Two hypotheses, tested
+### 2d. Two of those hypotheses are testable on this data
 
-Both of the measurable explanations above were run rather than left as
-argument. See the tables below; if this section says `pending`, they had not
-finished when this was written.
+Both are cheap to run and neither was finished in time for this write-up, so
+they are recorded here as the next two measurements rather than as results. The
+scripts are trivial given `helm_responses.jsonl` from §2's reproduction notes.
+
+**Is the 2PL misspecified because the matrix is multidimensional?** Restrict to
+one kind of item — the five MMLU subjects plus OpenBookQA, 1,052 items, all
+multiple-choice knowledge questions rather than a mix of maths, statutory
+interpretation and commonsense — keep the same twelve models, and re-run
+`validate`. If rank recovery improves materially, unidimensionality is the
+binding problem and the answer is to fit per domain rather than across a mixed
+suite. If it does not, the 2PL is not the limit here.
+
+**Is twelve respondents simply too few?** Take 25 models instead of 12 over the
+same 3,551 items and re-run. `validate` warns below six models; twelve is not
+much more, and respondent count binds everything else in this tool. The 95-model
+result in §2e shows what respondents do to *item* estimates; this would show
+what they do to *rank recovery*, which is a different question and the one the
+headline claim depends on.
+
+Between them these separate "IRT does not describe this suite" from "we did not
+give it enough models", which is the single most useful thing left to know
+about this data. Until they are run, §2c's causes stay hypotheses.
 
 ### 2e. Ninety-five models — `dead` becomes reachable
 
@@ -434,9 +454,9 @@ and then, per record, `{"model_id": <model>, "item_id": "<scenario>_<instance_id
   The full 95-model sweep is 95 refits and was not run. Whether rank recovery
   keeps improving past twenty-five respondents is therefore open, and it is the
   single most useful thing anyone could measure next on this data.
-- **The causes of the §2c shortfall are not fully separated.** Two of the four
-  hypotheses were tested (§2d); the contribution of the scoring artefact and of
-  multiple-choice guessing were not isolated.
+- **None of the causes of the §2c shortfall is measured.** All four are
+  hypotheses. Two of them are testable on exactly this data and §2d says how;
+  they are the next thing to run.
 - **No timings beyond the three above** (9.7 s for 20 × 600, 29.3 s for
   12 × 3,551, 23.5 s for 95 × 3,551, all CPU, 2,000 SVI steps). They will not
   extrapolate cleanly: cost scales with observed responses and with item count,
