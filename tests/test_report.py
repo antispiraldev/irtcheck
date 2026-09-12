@@ -14,7 +14,9 @@ fabricates a valid IrtFit from known parameters with numpy alone.
 from __future__ import annotations
 
 import json
+import pathlib
 import re
+import tempfile
 
 import pytest
 from rich.console import Console
@@ -41,6 +43,7 @@ from irtcheck.report import (
     row_json,
     sort_rows,
     suggested_respondent_key,
+    summarise_diagnostics,
 )
 from irtcheck.synth import synthetic_fit
 
@@ -69,6 +72,12 @@ def text_of(renderable_call) -> str:
     console = Console(width=160, record=True, no_color=True, highlight=False)
     renderable_call(console)
     return console.export_text()
+
+
+def _tmp_path_for(fit: IrtFit):
+    """A throwaway path to round-trip a fixture through, so mutating a copy's
+    diagnostics cannot leak into the module-scoped fixture other tests share."""
+    return pathlib.Path(tempfile.mkdtemp()) / "copy.irt"
 
 
 def flat(text: str) -> str:
@@ -403,3 +412,84 @@ def test_every_column_declares_at_least_one_json_key():
     for column in COLUMNS:
         assert isinstance(column, Column)
         assert column.keys, f"{column.heading} would be invisible to --json"
+
+
+# -- the report is a summary, not the artifact -------------------------------
+
+
+def _with_history(fit: IrtFit, points: int = 2000) -> IrtFit:
+    """The same fit, carrying a full-length ELBO trace like a real one does.
+
+    synth.py fabricates artifacts without a trace, so the flood this guards
+    against is invisible to every other fixture in this file — which is exactly
+    how it shipped.
+    """
+    fit.diagnostics["elbo_history"] = [-400.0 + i * 0.1 for i in range(points)]
+    fit.diagnostics["elbo_history_stride"] = 1
+    fit.diagnostics["elbo_final"] = fit.diagnostics["elbo_history"][-1]
+    return fit
+
+
+def test_the_elbo_trace_is_not_printed(thin):
+    """A report must not paste the fit's telemetry into the terminal.
+
+    Measured before the fix: 1127 lines of output for a 30-item suite, 1056 of
+    them raw ELBO values, putting the item table below the fold. The trace
+    belongs in the artifact; the report says how many points it has.
+    """
+    fit = _with_history(IrtFit.load(thin.save(_tmp_path_for(thin))))
+    body = flat(text_of(lambda c: render(build_report(fit), c)))
+    assert "elbo_history_points=2000" in body
+    # Three consecutive trace values would mean the list itself got rendered.
+    assert not re.search(r"-39[0-9]\.\d+, -39[0-9]\.\d+, -39[0-9]\.\d+", body), (
+        "the ELBO trace is being rendered into the report body"
+    )
+    assert len(body.splitlines()) < 40
+
+
+def test_the_json_summarises_diagnostics_rather_than_dumping_them(thin):
+    """`report --json` is piped into jq, and 2000 of its 2654 lines were trace."""
+    fit = _with_history(IrtFit.load(thin.save(_tmp_path_for(thin))))
+    payload = build_report(fit).to_json()
+    diagnostics = payload["header"]["diagnostics"]
+    assert "elbo_history" not in diagnostics
+    assert diagnostics["elbo_history_points"] == 2000
+    assert diagnostics["elbo_final"] == fit.diagnostics["elbo_final"]
+    # The claim is about the diagnostics block, not the whole payload: the item
+    # array is legitimately long and is what a caller asked for.
+    block = json.dumps(diagnostics, indent=2).splitlines()
+    assert len(block) < 40, (
+        f"the diagnostics block is {len(block)} lines of a report that is meant "
+        "to be piped into jq"
+    )
+
+
+def test_any_long_diagnostics_value_is_summarised_not_just_the_elbo_trace(thin):
+    """The filter is on type, so the next list-valued diagnostics key is safe.
+
+    Special-casing `elbo_history` would have fixed the instance and left the
+    class of bug in place.
+    """
+    fit = IrtFit.load(thin.save(_tmp_path_for(thin)))
+    fit.diagnostics["some_future_trace"] = list(range(5000))
+    fit.diagnostics["nested"] = {"scalar": 1, "trace": list(range(5000))}
+    summary = summarise_diagnostics(fit.diagnostics)
+    assert summary["some_future_trace_points"] == 5000
+    assert "some_future_trace" not in summary
+    assert summary["nested"] == {"scalar": 1}
+
+
+def test_the_dead_threshold_advice_states_the_measured_respondent_count(thin):
+    """It said "roughly a hundred respondents" and that is not what it takes.
+
+    `dead` needs the interval wholly inside (0, DEAD_THRESHOLD), so it has to
+    clear zero as well as the threshold; that caps sd(a) at 0.089. Measured on
+    synth matrices with the fitter's conditional-information intervals, no item
+    reaches `dead` at 300 respondents and eighteen do at 1000.
+    """
+    header = build_header(thin)
+    if header.dead_count:
+        pytest.skip("this fixture has dead items, so the advice is not shown")
+    detail = " ".join(build_refusal(header).detail)
+    assert "thousand respondents, not a hundred" in detail
+    assert "0.089" in detail
