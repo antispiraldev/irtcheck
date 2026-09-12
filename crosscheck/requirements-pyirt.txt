@@ -1,0 +1,9 @@
+# The reference Python implementation, pinned. Only ever installed into the
+# separate Python 3.11 venv that setup.sh creates — never into the project's own
+# environment, and never as an irtcheck dependency.
+#
+# 0.7.1 is the newest release, and it declares Requires-Python >=3.9,<3.12. See
+# ../CLAUDE.md "Known constraint: py-irt is not a dependency", and
+# check_pyirt_resolution.sh, which reproduces what a 3.12 interpreter actually
+# resolves an unpinned `pip install py-irt` to.
+py-irt==0.7.1
