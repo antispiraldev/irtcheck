@@ -35,7 +35,7 @@ worth scripting against.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -329,7 +329,10 @@ class Header:
             "n_responses": self.n_responses,
             "density": self.density,
             "model": dict(self.model),
-            "diagnostics": dict(self.diagnostics),
+            # Summarised, not raw: see summarise_diagnostics. The full ELBO
+            # trace lives in the artifact, which is where a caller who wants it
+            # should read it from.
+            "diagnostics": summarise_diagnostics(self.diagnostics),
             "score_threshold": self.score_threshold,
             "created": self.created,
             "irtcheck_version": self.irtcheck_version,
@@ -469,8 +472,11 @@ def build_refusal(header: Header) -> Refusal:
     else:
         contrast = (
             "No items are flagged dead, which is expected rather than suspicious at this "
-            "respondent count: 'dead' needs an interval narrow enough to sit wholly below "
-            f"{DEAD_THRESHOLD}, and that takes roughly a hundred respondents."
+            "respondent count: 'dead' needs an interval narrow enough to sit wholly "
+            f"inside (0, {DEAD_THRESHOLD}) — it has to clear zero too, or the item is "
+            "insufficient-data instead. That caps the standard error at 0.089, which "
+            "measures out at roughly a thousand respondents, not a hundred. Below that, "
+            "an item that does not discriminate comes back insufficient-data."
         )
 
     detail = [
@@ -681,6 +687,55 @@ def render_header(header: Header) -> Panel:
     return Panel(grid, title="suite", border_style="blue", padding=(1, 2))
 
 
+# Diagnostics keys that are collections rather than numbers. They are the fit's
+# telemetry, they belong in the artifact, and a report is a summary — so the
+# report states their shape and not their contents.
+def summarise_diagnostics(diagnostics: dict[str, Any]) -> dict[str, Any]:
+    """Diagnostics with every collection reduced to a description of its size.
+
+    `elbo_history` is the reason this exists. It holds up to 2000 floats, and
+    rendering the dict naively put every one of them in the report: 1127 lines
+    of terminal output for a 30-item suite, 1056 of them ELBO values, with the
+    item table — the thing a reader came for — below the fold. The JSON was
+    worse, 2000 of 2654 lines.
+
+    The filter is on *type*, not on the key name. Special-casing `elbo_history`
+    would fix today's flood and leave the next diagnostics key that happens to
+    be a list free to reintroduce it, which is the same bug with a different
+    name. A report renders scalars; anything else is described.
+    """
+    out: dict[str, Any] = {}
+    for key, value in diagnostics.items():
+        if value is None or key == "source":
+            continue
+        if isinstance(value, str | bytes):
+            out[key] = value
+        elif isinstance(value, Sequence):
+            # Kept as a count and its ends: enough to see that a trace exists
+            # and where it got to, without carrying the trace.
+            out[f"{key}_points"] = len(value)
+        elif isinstance(value, Mapping):
+            # `str` is a Sequence, so the test has to let strings through
+            # explicitly or a nested text value disappears without a trace --
+            # which is the same silent-drop this function exists to stop.
+            out[key] = {
+                k: v
+                for k, v in value.items()
+                if isinstance(v, str) or not isinstance(v, Sequence | Mapping)
+            }
+        else:
+            out[key] = value
+    return out
+
+
+def _scalar(value: Any) -> str:
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, Mapping):
+        return "{" + ", ".join(f"{k}={_scalar(v)}" for k, v in value.items()) + "}"
+    return str(value)
+
+
 def _diagnostics_line(header: Header) -> str:
     model = [str(header.model.get("kind", "?")), f"{header.model.get('priors', '?')} priors"]
     identification = header.model.get("identification")
@@ -688,9 +743,7 @@ def _diagnostics_line(header: Header) -> str:
         model.append(str(identification))
 
     numbers = [
-        f"{key}={value:g}" if isinstance(value, float) else f"{key}={value}"
-        for key, value in header.diagnostics.items()
-        if value is not None and key != "source"
+        f"{key}={_scalar(value)}" for key, value in summarise_diagnostics(header.diagnostics).items()
     ]
 
     lines = [" · ".join(model)]

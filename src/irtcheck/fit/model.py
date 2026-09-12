@@ -55,11 +55,16 @@ distribution rather than fitted on its own thin evidence, which is what the spec
 asks for — but the thing it is pulled *toward* is "does not discriminate". An
 item earns a discrimination from its data or it does not get one, and when it
 does not, its interval spans zero and the tool says so. On the same synthetic
-matrices this recovers coverage of 91% against a nominal 95%, flags 93% of the
-genuinely dead items as insufficient-data at 15 respondents against 53% of the
-live ones, and separates them further as respondents are added (84% vs 11% at
-60). Difficulty has no such tension and keeps the conventional form,
-`b_i ~ Normal(mu_b, sigma_b)` with both learned.
+matrices this flags 93% of the genuinely dead items as insufficient-data at 15
+respondents against 53% of the live ones, and separates them further as
+respondents are added (84% vs 11% at 60). Difficulty has no such tension and
+keeps the conventional form, `b_i ~ Normal(mu_b, sigma_b)` with both learned.
+
+The interval that flag reads is **not** this guide's marginal. A mean-field
+marginal is too narrow — measured coverage 80-88% against a nominal 95%, and
+narrow is the direction that makes the tool refuse too little — so the reported
+item intervals are recomputed from the conditional information matrix. See
+fit/intervals.py; this module's job is the model and the point estimates.
 
 The cost is a downward bias on `a`, and it is the right direction to be wrong
 in: it makes the tool slower to claim an item discriminates, never quicker.
@@ -299,5 +304,14 @@ def model_metadata(priors: str) -> dict[str, str]:
             "may legitimately contain zero; the reflection (a, b, theta) -> "
             "(-a, -b, -theta) is resolved toward positive mean a"
         ),
-        "inference": "svi/trace-elbo, mean-field normal guide",
+        # Two halves, deliberately named separately: the point estimates are
+        # variational and the item intervals are not. A reader comparing this
+        # artifact against mirt needs to know that the widths were not produced
+        # by the same machinery as the means.
+        "inference": (
+            "svi/trace-elbo, mean-field normal guide; item intervals from the "
+            "conditional (expected) information matrix, not the guide's marginals, "
+            "because a mean-field marginal is too narrow and `insufficient-data` "
+            "reads the interval"
+        ),
     }

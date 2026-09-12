@@ -182,6 +182,17 @@ CPU). The report header:
 | `ceiling`           | 3.8%          | 3.7%          |
 | `floor`             | 4.3%          | 2.7%          |
 
+> **Superseded.** Both columns here were measured with the reported item
+> interval taken from the variational marginals. That interval was too narrow —
+> §2f — and the item intervals now come from the conditional information matrix
+> instead, which raises every `insufficient-data` count. Re-running the
+> *synthetic* column alone gives 131 usable (21.8%), 429 `insufficient-data`
+> (71.5%), 1 `dead` (0.2%), ceiling 3.8% / floor 2.8%. The real fit has not been
+> re-run, so the correspondence argued below **cannot currently be checked**,
+> and comparing the old real column against the new synthetic one would be
+> comparing two different estimators. The `ceiling` and `floor` rows are
+> unaffected either way: those flags read observed rates, not intervals.
+
 **The real matrix behaves like the synthetic one at comparable respondent
 count.** Slightly under half the items unrankable, `dead` under one per cent,
 single-digit ceiling and floor rates. `report` raises a caution rather than a
@@ -394,10 +405,22 @@ about this data. Until they are run, §2c's causes stay hypotheses.
 ### 2e. Ninety-five models — `dead` becomes reachable
 
 Fitting all 95 models is outside the tool's design range and is interesting for
-one reason: CLAUDE.md claims `dead` needs "roughly a hundred respondents"
+one reason: CLAUDE.md claimed `dead` needs "roughly a hundred respondents"
 before an interval can sit wholly below the threshold. 95 real models is the
 first chance to check that against real responses rather than a generated
 matrix. The fit takes **23.5 s** for 323,656 responses (96% dense).
+
+> **Superseded, and the claim it was testing was wrong anyway.** These counts
+> come from the variational interval (§2f), so the split between
+> `insufficient-data` and `dead` would move if the fit were re-run. The
+> *direction* below is safe — both columns were measured the same way, so going
+> from 12 to 95 respondents really did collapse `insufficient-data` — but the
+> "roughly a hundred respondents" figure it set out to confirm does not survive
+> contact with the arithmetic. `dead` needs the interval wholly inside
+> `(0, 0.35)`, clearing zero as well as the threshold, so it needs
+> `sd(a) < 0.089`; measured on synthetic matrices with the current intervals no
+> item reaches it at 300 respondents and eighteen of 200 do at 1,000. CLAUDE.md
+> and the README now say a thousand.
 
 | items out of 3,551 | 12 models   | 95 models   |
 | ------------------ | ----------- | ----------- |
@@ -418,6 +441,101 @@ dead weight — a claim that was simply not available at twelve models.
 This is the strongest argument for `--respondent-key` in the documentation, and
 it is also the clearest demonstration that `insufficient-data` is a statement
 about the data rather than about the items.
+
+### 2f. The interval on `a` was too narrow, and the tool refused too little
+
+Every measurement above is of a *point estimate*. But irtcheck's central
+claim is not a point estimate — it is a decision, `insufficient-data`, and that
+decision is precisely the question of whether the 95% interval on `a_i` contains
+zero. An interval can be wrong while the estimate at its centre is right, and
+this one was.
+
+**How it was found.** `crosscheck/run_gridpost.py` computed, for one item at a time, the
+posterior over `(a_i, b_i)` on a dense 2-D grid by direct numerical integration
+— the thing SVI approximates, without approximating it. Our interval came out at
+**0.558×** the grid's width on the dense matrix and 0.847× on the sparse one.
+
+**Why, exactly.** A mean-field guide factorises the posterior, so for a Gaussian
+target each marginal variance is the *conditional* `1/precision_ii` rather than
+the marginal `Sigma_ii`. The two differ by `sqrt(1 - R²)` where `R` is that
+coordinate's multiple correlation with everything else. For a 2PL that
+correlation is large and structural, because `a_i` and `b_i` enter the
+likelihood only through `a_i (theta_j - b_i)`: measured on the grid, `corr(a, b)`
+runs to ±0.85, and the mean-field prediction `sqrt(1 - corr²)` tracks the
+observed width ratio with a residual of 0.86.
+
+**Why it was the dangerous direction.** `insufficient-data` fires when the
+interval *spans zero*. A narrower interval therefore fires it **less** — the
+tool claimed discriminations it had not earned. `fit/fitter.py` asserted the
+opposite for three waves, that narrow intervals made the flag "conservative,
+never over-eager", and nothing measured it.
+
+**Coverage, which needs no grid.** The decisive check is frequentist: `synth.py`
+knows the true `a`, so "does a nominal 95% interval contain it 95% of the time"
+has a direct answer, with no conditioning caveat. Over three seeds:
+
+| regime | variational marginal | conditional information |
+| --- | --- | --- |
+| 15 × 500 | 87.5% | **92.7%** |
+| 60 × 500 | 84.3% | **93.3%** |
+| 300 × 60 | 80.6% | **91.1%** |
+
+The two methods agree on the size of the old error, which is why both are worth
+having: the grid put the width at 0.56× truth at 300 respondents, and 80.6%
+coverage implies 0.66×.
+
+**What was changed.** The point estimates are still variational. The item
+intervals are now the 2×2 expected information of `(a_i, b_i)` conditional on
+`theta_hat`, inverted — a Laplace approximation to that item's two parameters
+*jointly*, so the `a`–`b` correlation is carried rather than dropped. It is
+closed form, one pass over the responses, and positive definite for every item
+including one with no responses, which gets its population prior back exactly.
+Re-running the grid check after the change: median width ratio **0.923** on the
+dense matrix and **0.903** on the sparse one, with the `insufficient-data`
+verdict now agreeing on 10 of 11 items rather than 9.
+
+**Two things tried and rejected on measurement.** A per-item `(a, b)`
+block-covariance guide (`AutoStructured` with an elementwise dependency)
+improves the ELBO on both matrices and lifts dense coverage to 86.7% — but at 15
+respondents it makes coverage slightly *worse*, 87.5% → 84.9%, and that is the
+regime the tool is for. Running 10,000 epochs instead of 2,000 moves the median
+`sd(a)` by under 5%, so the narrowness was never under-convergence.
+
+**What is still wrong.** Conditioning on `theta_hat` treats the abilities as
+known, so the remaining 2–4 points of under-coverage is real and in the same
+direction: still slightly too narrow, still slightly slow to refuse.
+
+And `theta`'s interval is untouched, because the same treatment does not help
+it — 64.4% coverage at 15 × 500 before and after. Its error there is not width
+but **scale**: `theta ~ N(0, 1)` is a fixed ruler, the 15 true abilities have a
+sample sd of 0.82 rather than 1.0, and the fit stretches every ability by the
+difference. Regressing truth on the estimate gives a slope of 0.85 and an
+RMSE 2.18× the reported sd, so the error is a shared factor and no width would
+cover it. It does not touch any claim on this page: every validation number here
+is a **rank** correlation, and a shared scale factor leaves ranks alone. Nor is
+it displayed anywhere — nothing in the package reads `theta.sd` or
+`theta.hdi_*`, and the ability standard errors `select` and the HTML report show
+are computed from test information, `1/sqrt(1 + I(theta))`. It is a field in the
+artifact that no one reads, which argues for computing it properly or removing
+it rather than for leaving it as it is.
+
+**The consequence for small suites is not cosmetic.** Honest intervals refuse a
+great deal more. At 15 respondents the flag becomes nearly silent — refusal by
+true `a` runs 98% / 92% / 83% / 66% across bands from `a < 0.3` to `a > 1.2`, an
+AUC of 0.60 — which agrees with the recovery ceiling recorded in
+`tests/test_fit_recovery.py`, where integrating the exact per-item posterior
+given the *true* abilities and the *true* prior, the Bayes-optimal estimator no
+fitter can beat, reaches only 0.52 correlation with the true `a` at that size. At 60 respondents
+the same flag separates cleanly, 97% against 11%, AUC 0.93. **Sixty respondents,
+not fifteen, is where this tool starts being able to tell one item from
+another**, and that is the most useful thing on this page for anyone deciding
+whether to run it.
+
+`tests/test_intervals.py` measures the coverage figures above in CI, so the next
+change to the guide, the priors or the summaries fails a test rather than a
+cross-check two waves later.
+
+---
 
 ### Reproducing section 2
 
@@ -443,13 +561,28 @@ and then, per record, `{"model_id": <model>, "item_id": "<scenario>_<instance_id
 
 ## 3. What we have not measured
 
-- **No comparison against `mirt` or `py-irt`.** Our 2PL is written directly in
-  Pyro because `py-irt` cannot be a dependency on 3.12+ (see CLAUDE.md). A
-  one-time comparison against R's `mirt` and against `py-irt` on a 3.11 venv is
-  planned in `crosscheck/` and is **not finished**. Nothing on this page or in
-  the README should be read as "agrees with mirt". When it lands, watch for sign
-  and scale convention differences between packages; the identification choice
-  is recorded in each artifact's `model.identification` field for that reason.
+- ~~**No comparison against `mirt` or `py-irt`.**~~ **Done.** Both references
+  ran — R 4.3.3 with `mirt` 1.41, and `py-irt` 0.7.1 on CPython 3.11.14, neither
+  of which can be a dependency of this package. On the dense 300 × 60 matrix our
+  point estimates agree with `mirt` at **Spearman 0.949 on `a` and 0.9991 on
+  `b`**, mean `|ΔP(correct)|` 0.0092; `mirt` and an independently written scipy
+  marginal-ML agree with each other at logLik −9431.926306 both ways. Conventions
+  were reconciled explicitly rather than assumed: `b = −d/a1` checked against
+  `mirt`'s own `IRTpars` to 1.5e-14, and `py-irt`'s `export()` identified as a
+  LogNormal *median*, up to 3.74× from its own mean. **`mirt` does not constrain
+  `a > 0`** — 2 of 59 slopes came back negative on the dense matrix and 22 of 183
+  on the sparse one — so `mirt`, not `py-irt`, is the reference whose
+  identification convention matches ours. The comparison also found the interval
+  bug in §2f and showed that at twelve respondents unpenalised ML has no interior
+  maximum at all, which is the empirical case for the hierarchical priors.
+- **No real-data re-run since the interval change.** §2f moved the reported item
+  interval off the variational marginals, which changes every
+  `insufficient-data` count on this page. The synthetic numbers were re-measured;
+  the HELM fits were not, because the fetch scripts are not in the repository
+  and the eighteen scenario subsets are not recorded precisely enough to rebuild
+  the same 3,551 items. §2a and §2e are marked superseded. **This is the single
+  most useful thing to run next on this data**, and shipping the fetch scripts
+  is the prerequisite.
 - **No real-data leave-one-model-out beyond twelve and twenty-five models.**
   The full 95-model sweep is 95 refits and was not run. Whether rank recovery
   keeps improving past twenty-five respondents is therefore open, and it is the

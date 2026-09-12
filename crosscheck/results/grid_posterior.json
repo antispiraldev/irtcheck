@@ -7,35 +7,11 @@
     "refit_reproduced_artifact_to": 0.0,
     "conditioned_on": "theta = posterior mean (NOT a full joint marginal)",
     "n_items": 11,
-    "median_width_ratio_svi_over_grid": 0.5575536794792668,
-    "min_width_ratio": 0.2521881244210181,
-    "max_width_ratio": 0.8640978138918003,
-    "verdict_agreement": "9/11",
+    "median_width_ratio_svi_over_grid": 0.922793662470026,
+    "min_width_ratio": 0.5023964467111386,
+    "max_width_ratio": 1.1595204256959095,
+    "verdict_agreement": "10/11",
     "items": [
-      {
-        "item_id": "item_00000",
-        "true_a": 1.1194052304159952,
-        "n_responses": 300,
-        "grid": {
-          "mean": 0.9436834394380614,
-          "low": 0.6131795459482879,
-          "high": 1.2827162050967635,
-          "width": 0.6695366591484756,
-          "spans_zero": false,
-          "grid_edge_mass": 5.629989716673266e-69,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 0.8701300621032715,
-          "sd": 0.08857008069753647,
-          "low": 0.6965358937875563,
-          "high": 1.0437242304189867,
-          "width": 0.34718833663143034,
-          "spans_zero": false
-        },
-        "width_ratio_svi_over_grid": 0.5185501523889497,
-        "verdict_agrees": true
-      },
       {
         "item_id": "item_00003",
         "true_a": 4.809959159263405,
@@ -51,13 +27,37 @@
         },
         "svi": {
           "mean": 3.278899908065796,
-          "sd": 0.37574201822280884,
-          "low": 2.542459084697877,
-          "high": 4.015340731433715,
-          "width": 1.4728816467358374,
+          "sd": 0.3772630944942497,
+          "low": 2.5394778299874146,
+          "high": 4.018321986144177,
+          "width": 1.4788441561567627,
           "spans_zero": false
         },
-        "width_ratio_svi_over_grid": 0.8104696338222929,
+        "width_ratio_svi_over_grid": 0.8137505714575393,
+        "verdict_agrees": true
+      },
+      {
+        "item_id": "item_00006",
+        "true_a": 0.15585248795536694,
+        "n_responses": 300,
+        "grid": {
+          "mean": 0.14765465401452532,
+          "low": -0.11130449030520143,
+          "high": 0.3517800968426844,
+          "width": 0.4630845871478858,
+          "spans_zero": true,
+          "grid_edge_mass": 1.320238138892601e-212,
+          "grid_limited": false
+        },
+        "svi": {
+          "mean": 0.1593954861164093,
+          "sd": 0.1090151465736289,
+          "low": -0.054270274987399475,
+          "high": 0.37306124722021805,
+          "width": 0.4273315222076175,
+          "spans_zero": true
+        },
+        "width_ratio_svi_over_grid": 0.922793662470026,
         "verdict_agrees": true
       },
       {
@@ -75,157 +75,61 @@
         },
         "svi": {
           "mean": 0.24937698245048523,
-          "sd": 0.07320497930049896,
-          "low": 0.10589785949883679,
-          "high": 0.39285610540213367,
-          "width": 0.2869582459032969,
+          "sd": 0.11283138918659152,
+          "low": 0.0282315232672474,
+          "high": 0.47052244163372303,
+          "width": 0.4422909183664756,
           "spans_zero": false
         },
-        "width_ratio_svi_over_grid": 0.7513363625123216,
+        "width_ratio_svi_over_grid": 1.1580404275599316,
         "verdict_agrees": true
       },
       {
-        "item_id": "item_00009",
-        "true_a": 0.6475017525433356,
+        "item_id": "item_00021",
+        "true_a": 0.09526576264404424,
         "n_responses": 300,
         "grid": {
-          "mean": 0.6426879097314793,
-          "low": 0.379816218257121,
-          "high": 0.9087831563699921,
-          "width": 0.5289669381128711,
-          "spans_zero": false,
-          "grid_edge_mass": 3.317586506484077e-117,
+          "mean": -0.05054128508623071,
+          "low": -0.2755719361843639,
+          "high": 0.1376581520225907,
+          "width": 0.4132300882069546,
+          "spans_zero": true,
+          "grid_edge_mass": 1.2021056336819278e-228,
           "grid_limited": false
         },
         "svi": {
-          "mean": 0.6091031432151794,
-          "sd": 0.07356249541044235,
-          "low": 0.46492330156398465,
-          "high": 0.7532829848663742,
-          "width": 0.2883596833023896,
-          "spans_zero": false
+          "mean": -0.0756647065281868,
+          "sd": 0.11305037119349949,
+          "low": -0.2972393625583273,
+          "high": 0.14590994950195366,
+          "width": 0.44314931206028096,
+          "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.5451374415405511,
+        "width_ratio_svi_over_grid": 1.0724033043749277,
         "verdict_agrees": true
       },
       {
-        "item_id": "item_00013",
-        "true_a": 0.7809651592408811,
+        "item_id": "item_00028",
+        "true_a": 0.7270588504136467,
         "n_responses": 300,
         "grid": {
-          "mean": 0.8087922697339825,
-          "low": 0.5074872890045509,
-          "high": 1.1384631370972973,
-          "width": 0.6309758480927464,
+          "mean": 0.45978000517853435,
+          "low": 0.193248553112586,
+          "high": 0.7060660240556448,
+          "width": 0.5128174709430587,
           "spans_zero": false,
-          "grid_edge_mass": 2.1098529434992625e-69,
+          "grid_edge_mass": 1.3643132147475524e-156,
           "grid_limited": false
         },
         "svi": {
-          "mean": 0.7526756525039673,
-          "sd": 0.07294163107872009,
-          "low": 0.6097126825825192,
-          "high": 0.8956386224254154,
-          "width": 0.28592593984289616,
+          "mean": 0.43992486596107483,
+          "sd": 0.12449371905925924,
+          "low": 0.19592166024621865,
+          "high": 0.6839280716759311,
+          "width": 0.4880064114297124,
           "spans_zero": false
         },
-        "width_ratio_svi_over_grid": 0.45314878645064754,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00019",
-        "true_a": 1.0305306245552797,
-        "n_responses": 300,
-        "grid": {
-          "mean": 1.0269659408175151,
-          "low": 0.6905460059376513,
-          "high": 1.3657967850630444,
-          "width": 0.6752507791253931,
-          "spans_zero": false,
-          "grid_edge_mass": 6.328054221431047e-70,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 0.9493763446807861,
-          "sd": 0.09604476392269135,
-          "low": 0.7611320664444838,
-          "high": 1.1376206229170884,
-          "width": 0.3764885564726046,
-          "spans_zero": false
-        },
-        "width_ratio_svi_over_grid": 0.5575536794792668,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00024",
-        "true_a": 3.180380361749917,
-        "n_responses": 300,
-        "grid": {
-          "mean": 2.5014788994952504,
-          "low": 1.9424321696159217,
-          "high": 3.0942296748644473,
-          "width": 1.1517975052485256,
-          "spans_zero": false,
-          "grid_edge_mass": 2.2009767999119787e-19,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 2.216809034347534,
-          "sd": 0.2538989782333374,
-          "low": 1.719176181181894,
-          "high": 2.7144418875131744,
-          "width": 0.9952657063312804,
-          "spans_zero": false
-        },
-        "width_ratio_svi_over_grid": 0.8640978138918003,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00026",
-        "true_a": 0.32637088337013637,
-        "n_responses": 300,
-        "grid": {
-          "mean": 0.5331827265270533,
-          "low": 0.31244184550961124,
-          "high": 0.7684417240598209,
-          "width": 0.4559998785502097,
-          "spans_zero": false,
-          "grid_edge_mass": 2.6600253040055262e-124,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 0.5247613787651062,
-          "sd": 0.05854415521025658,
-          "low": 0.4100169430207532,
-          "high": 0.6395058145094592,
-          "width": 0.229488871488706,
-          "spans_zero": false
-        },
-        "width_ratio_svi_over_grid": 0.5032652030924548,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00029",
-        "true_a": 1.363616580028633,
-        "n_responses": 300,
-        "grid": {
-          "mean": 1.5063290879525373,
-          "low": 1.127361143282187,
-          "high": 1.890800027934555,
-          "width": 0.7634388846523679,
-          "spans_zero": false,
-          "grid_edge_mass": 9.732097027113827e-52,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 1.3598761558532715,
-          "sd": 0.16348305344581604,
-          "low": 1.039455258941642,
-          "high": 1.680297052764901,
-          "width": 0.6408417938232591,
-          "spans_zero": false
-        },
-        "width_ratio_svi_over_grid": 0.8394146626616571,
+        "width_ratio_svi_over_grid": 0.9516181469642222,
         "verdict_agrees": true
       },
       {
@@ -243,14 +147,14 @@
         },
         "svi": {
           "mean": -0.15467868745326996,
-          "sd": 0.07045882195234299,
-          "low": -0.2927754409053896,
-          "high": -0.016581934001150322,
-          "width": 0.27619350690423927,
-          "spans_zero": false
+          "sd": 0.10526378947049218,
+          "low": -0.36099192374005684,
+          "high": 0.051634548833516924,
+          "width": 0.41262647257357377,
+          "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.575070469421931,
-        "verdict_agrees": false
+        "width_ratio_svi_over_grid": 0.859141483586986,
+        "verdict_agrees": true
       },
       {
         "item_id": "item_00032",
@@ -267,14 +171,110 @@
         },
         "svi": {
           "mean": 1.7148510217666626,
-          "sd": 0.2970644533634186,
-          "low": 1.13261539195065,
-          "high": 2.297086651582675,
-          "width": 1.164471259632025,
+          "sd": 0.5917968031072355,
+          "low": 0.5549506012383449,
+          "high": 2.87475144229498,
+          "width": 2.319800841056635,
           "spans_zero": false
         },
-        "width_ratio_svi_over_grid": 0.2521881244210181,
+        "width_ratio_svi_over_grid": 0.5023964467111386,
         "verdict_agrees": false
+      },
+      {
+        "item_id": "item_00039",
+        "true_a": 0.9060275966881228,
+        "n_responses": 300,
+        "grid": {
+          "mean": 1.570183332356702,
+          "low": 0.9465080333857904,
+          "high": 2.33450208120082,
+          "width": 1.3879940478150297,
+          "spans_zero": false,
+          "grid_edge_mass": 4.076065802357036e-16,
+          "grid_limited": false
+        },
+        "svi": {
+          "mean": 1.4110567569732666,
+          "sd": 0.41057066902835754,
+          "low": 0.6063530323803309,
+          "high": 2.2157604815662024,
+          "width": 1.6094074491858716,
+          "spans_zero": false
+        },
+        "width_ratio_svi_over_grid": 1.1595204256959095,
+        "verdict_agrees": true
+      },
+      {
+        "item_id": "item_00052",
+        "true_a": 0.14275878245121632,
+        "n_responses": 300,
+        "grid": {
+          "mean": 0.12386413993647921,
+          "low": -0.1370165533593268,
+          "high": 0.3281287690215982,
+          "width": 0.465145322380925,
+          "spans_zero": true,
+          "grid_edge_mass": 2.852801875755073e-217,
+          "grid_limited": false
+        },
+        "svi": {
+          "mean": 0.13551771640777588,
+          "sd": 0.10316046750881014,
+          "low": -0.06667308458525464,
+          "high": 0.33770851740080643,
+          "width": 0.4043816019860611,
+          "spans_zero": true
+        },
+        "width_ratio_svi_over_grid": 0.8693661583355616,
+        "verdict_agrees": true
+      },
+      {
+        "item_id": "item_00053",
+        "true_a": 0.37134990278549385,
+        "n_responses": 300,
+        "grid": {
+          "mean": 0.60412098264775,
+          "low": 0.34625525509897975,
+          "high": 0.8604614470722589,
+          "width": 0.5142061919732792,
+          "spans_zero": false,
+          "grid_edge_mass": 3.5523910423855927e-125,
+          "grid_limited": false
+        },
+        "svi": {
+          "mean": 0.5829960703849792,
+          "sd": 0.13422000176477097,
+          "low": 0.3199297008593917,
+          "high": 0.8460624399105667,
+          "width": 0.526132739051175,
+          "spans_zero": false
+        },
+        "width_ratio_svi_over_grid": 1.023194094633764,
+        "verdict_agrees": true
+      },
+      {
+        "item_id": "item_00055",
+        "true_a": 1.3129934372104497,
+        "n_responses": 300,
+        "grid": {
+          "mean": 1.7802354934247666,
+          "low": 1.3722659912626889,
+          "high": 2.196889279368844,
+          "width": 0.8246232881061553,
+          "spans_zero": false,
+          "grid_edge_mass": 7.647160560630383e-42,
+          "grid_limited": false
+        },
+        "svi": {
+          "mean": 1.5819748640060425,
+          "sd": 0.19278324189906587,
+          "low": 1.2041266529723305,
+          "high": 1.9598230750397545,
+          "width": 0.755696422067424,
+          "spans_zero": false
+        },
+        "width_ratio_svi_over_grid": 0.9164141165634191,
+        "verdict_agrees": true
       }
     ]
   },
@@ -285,11 +285,11 @@
     "sigma_b": 1.2437984943389893,
     "refit_reproduced_artifact_to": 0.0,
     "conditioned_on": "theta = posterior mean (NOT a full joint marginal)",
-    "n_items": 12,
-    "median_width_ratio_svi_over_grid": 0.8469939598262655,
-    "min_width_ratio": 0.6758603133626176,
-    "max_width_ratio": 0.9969050530838012,
-    "verdict_agreement": "12/12",
+    "n_items": 8,
+    "median_width_ratio_svi_over_grid": 0.9033624524677274,
+    "min_width_ratio": 0.7168842822828935,
+    "max_width_ratio": 1.019271110358719,
+    "verdict_agreement": "8/8",
     "items": [
       {
         "item_id": "item_00004",
@@ -306,61 +306,37 @@
         },
         "svi": {
           "mean": 0.28448250889778137,
-          "sd": 0.401126891374588,
-          "low": -0.5017117516114182,
-          "high": 1.070676769406981,
-          "width": 1.5723885210183992,
+          "sd": 0.4254748473049563,
+          "low": -0.5494328683433073,
+          "high": 1.1183978861388701,
+          "width": 1.6678307544821775,
           "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.6758603133626176,
+        "width_ratio_svi_over_grid": 0.7168842822828935,
         "verdict_agrees": true
       },
       {
-        "item_id": "item_00038",
-        "true_a": 0.2138960956391301,
-        "n_responses": 11,
+        "item_id": "item_00009",
+        "true_a": 0.904667875419369,
+        "n_responses": 12,
         "grid": {
-          "mean": -1.1623918613486803,
-          "low": -2.749319860123103,
-          "high": 0.006690230284030891,
-          "width": 2.7560100904071336,
+          "mean": 0.11576018328606565,
+          "low": -0.8759465077076299,
+          "high": 1.1483748792325041,
+          "width": 2.024321386940134,
           "spans_zero": true,
-          "grid_edge_mass": 1.714863147724853e-08,
+          "grid_edge_mass": 2.6350704477366302e-15,
           "grid_limited": false
         },
         "svi": {
-          "mean": -1.1532561779022217,
-          "sd": 0.6318562626838684,
-          "low": -2.391671696459303,
-          "high": 0.08515934065485986,
-          "width": 2.476831037114163,
+          "mean": 0.16946309804916382,
+          "sd": 0.4679833154688537,
+          "low": -0.7477673458506827,
+          "high": 1.0866935419490105,
+          "width": 1.8344608877996933,
           "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.8987017303511655,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00045",
-        "true_a": 1.5508798964297237,
-        "n_responses": 9,
-        "grid": {
-          "mean": 1.1679753977517475,
-          "low": -0.173903832190638,
-          "high": 2.902132658201526,
-          "width": 3.076036490392164,
-          "spans_zero": true,
-          "grid_edge_mass": 7.445516541317495e-08,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 1.0394372940063477,
-          "sd": 0.7150949835777283,
-          "low": -0.3621231196601662,
-          "high": 2.4409977076728615,
-          "width": 2.8031208273330277,
-          "spans_zero": true
-        },
-        "width_ratio_svi_over_grid": 0.9112768447605957,
+        "width_ratio_svi_over_grid": 0.9062102982434895,
         "verdict_agrees": true
       },
       {
@@ -378,133 +354,37 @@
         },
         "svi": {
           "mean": -0.30260998010635376,
-          "sd": 0.42044147849082947,
-          "low": -1.1266601357485317,
-          "high": 0.5214401755358241,
-          "width": 1.648100311284356,
+          "sd": 0.4719500514266725,
+          "low": -1.2276150836215298,
+          "high": 0.6223951234088222,
+          "width": 1.8500102070303521,
           "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.8291888004137526,
+        "width_ratio_svi_over_grid": 0.9307732871703978,
         "verdict_agrees": true
       },
       {
-        "item_id": "item_00060",
-        "true_a": 1.2882103832278136,
-        "n_responses": 12,
-        "grid": {
-          "mean": 1.8507219297689093,
-          "low": 0.5676238683942288,
-          "high": 3.411126168039093,
-          "width": 2.8435022996448645,
-          "spans_zero": false,
-          "grid_edge_mass": 3.0919390613885656e-07,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 1.8596067428588867,
-          "sd": 0.7231515049934387,
-          "low": 0.4422558373731993,
-          "high": 3.276957648344574,
-          "width": 2.8347018109713744,
-          "spans_zero": false
-        },
-        "width_ratio_svi_over_grid": 0.9969050530838012,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00064",
-        "true_a": 0.024085026852893182,
+        "item_id": "item_00106",
+        "true_a": 0.8218430914281925,
         "n_responses": 11,
         "grid": {
-          "mean": 0.2501593925585387,
-          "low": -0.7056624869650676,
-          "high": 1.301424432559345,
-          "width": 2.0070869195244123,
-          "spans_zero": true,
-          "grid_edge_mass": 2.6889934546350225e-14,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 0.2846081256866455,
-          "sd": 0.39878037571907043,
-          "low": -0.496987048647501,
-          "high": 1.066203300020792,
-          "width": 1.563190348668293,
-          "spans_zero": true
-        },
-        "width_ratio_svi_over_grid": 0.7788354024242744,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00070",
-        "true_a": 0.9544699089488506,
-        "n_responses": 11,
-        "grid": {
-          "mean": 1.7919420529388488,
-          "low": 0.49078485937300736,
-          "high": 3.364634788770489,
-          "width": 2.8738499293974815,
+          "mean": 1.4872200087536054,
+          "low": 0.19565921953671978,
+          "high": 3.053791760199755,
+          "width": 2.858132540663035,
           "spans_zero": false,
-          "grid_edge_mass": 2.6671349696106297e-07,
+          "grid_edge_mass": 6.988063653112013e-08,
           "grid_limited": false
         },
         "svi": {
-          "mean": 1.7463749647140503,
-          "sd": 0.7249563336372375,
-          "low": 0.32548666008742067,
-          "high": 3.1672632693406797,
-          "width": 2.841776609253259,
+          "mean": 1.4803357124328613,
+          "sd": 0.7431799641650043,
+          "low": 0.023729748295862274,
+          "high": 2.9369416765698606,
+          "width": 2.9132119282739986,
           "spans_zero": false
         },
-        "width_ratio_svi_over_grid": 0.9888395981237103,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00142",
-        "true_a": 0.47174882522560807,
-        "n_responses": 10,
-        "grid": {
-          "mean": 1.73393467128619,
-          "low": 0.38449547102770176,
-          "high": 3.334915300066382,
-          "width": 2.9504198290386805,
-          "spans_zero": false,
-          "grid_edge_mass": 2.49333574764698e-07,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 1.7130934000015259,
-          "sd": 0.7150435447692871,
-          "low": 0.31163380454698797,
-          "high": 3.114552995456064,
-          "width": 2.8029191909090763,
-          "spans_zero": false
-        },
-        "width_ratio_svi_over_grid": 0.9500068984495459,
-        "verdict_agrees": true
-      },
-      {
-        "item_id": "item_00151",
-        "true_a": 0.5862406629927628,
-        "n_responses": 11,
-        "grid": {
-          "mean": 0.5158981029930368,
-          "low": -0.47249988690624023,
-          "high": 1.6324854136371163,
-          "width": 2.1049853005433565,
-          "spans_zero": true,
-          "grid_edge_mass": 1.4909800827923757e-13,
-          "grid_limited": false
-        },
-        "svi": {
-          "mean": 0.46949777007102966,
-          "sd": 0.45868808031082153,
-          "low": -0.42951434768696806,
-          "high": 1.3685098878290274,
-          "width": 1.7980242355159954,
-          "spans_zero": true
-        },
-        "width_ratio_svi_over_grid": 0.8541742477022877,
+        "width_ratio_svi_over_grid": 1.019271110358719,
         "verdict_agrees": true
       },
       {
@@ -522,61 +402,85 @@
         },
         "svi": {
           "mean": -0.5012648701667786,
-          "sd": 0.38303595781326294,
-          "low": -1.2520015524407533,
-          "high": 0.24947181210719616,
-          "width": 1.5014733645479494,
+          "sd": 0.47190330533325564,
+          "low": -1.4261783530224181,
+          "high": 0.4236486126888609,
+          "width": 1.8498269657112791,
           "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.6891778328847639,
+        "width_ratio_svi_over_grid": 0.8490724974162439,
         "verdict_agrees": true
       },
       {
-        "item_id": "item_00182",
-        "true_a": 1.1164597565206837,
-        "n_responses": 12,
+        "item_id": "item_00196",
+        "true_a": 0.06727885050233934,
+        "n_responses": 11,
         "grid": {
-          "mean": 0.562092630503142,
-          "low": -0.353420979296231,
-          "high": 1.7310678275210323,
-          "width": 2.084488806817263,
+          "mean": 0.30441114653833334,
+          "low": -0.6529377914990195,
+          "high": 1.3928698330812181,
+          "width": 2.0458076245802377,
           "spans_zero": true,
-          "grid_edge_mass": 3.2125431299362348e-12,
+          "grid_edge_mass": 1.864225399449128e-13,
           "grid_limited": false
         },
         "svi": {
-          "mean": 0.5441208481788635,
-          "sd": 0.4465852975845337,
-          "low": -0.3311702513173299,
-          "high": 1.4194119476750569,
-          "width": 1.7505821989923867,
+          "mean": 0.3093043863773346,
+          "sd": 0.49335082549867,
+          "low": -0.6576454635700782,
+          "high": 1.2762542363247475,
+          "width": 1.933899699894826,
           "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.8398136719502431,
+        "width_ratio_svi_over_grid": 0.9452989013527735,
         "verdict_agrees": true
       },
       {
-        "item_id": "item_00192",
-        "true_a": 0.048564757426072476,
-        "n_responses": 12,
+        "item_id": "item_00082",
+        "true_a": 0.8681920827343534,
+        "n_responses": 11,
         "grid": {
-          "mean": -0.05685990969371043,
-          "low": -1.0027081066382115,
-          "high": 0.8216869806802897,
-          "width": 1.8243950873185013,
+          "mean": 0.750541303129528,
+          "low": -0.3699652629785499,
+          "high": 1.897976164357242,
+          "width": 2.267941427335792,
           "spans_zero": true,
-          "grid_edge_mass": 5.662031168791564e-17,
+          "grid_edge_mass": 1.1246734726061446e-12,
           "grid_limited": false
         },
         "svi": {
-          "mean": -0.022385582327842712,
-          "sd": 0.37756773829460144,
-          "low": -0.7624047512831669,
-          "high": 0.7176335866274814,
-          "width": 1.4800383379106483,
+          "mean": 0.7993212938308716,
+          "sd": 0.5204668325523584,
+          "low": -0.2207749533587764,
+          "high": 1.8194175410205196,
+          "width": 2.040192494379296,
           "spans_zero": true
         },
-        "width_ratio_svi_over_grid": 0.8112488069050936,
+        "width_ratio_svi_over_grid": 0.8995790057840962,
+        "verdict_agrees": true
+      },
+      {
+        "item_id": "item_00093",
+        "true_a": 0.2133447548796339,
+        "n_responses": 10,
+        "grid": {
+          "mean": 0.47517325902924545,
+          "low": -0.641873243079156,
+          "high": 1.7158939413941516,
+          "width": 2.3577671844733077,
+          "spans_zero": true,
+          "grid_edge_mass": 1.0669670507112176e-11,
+          "grid_limited": false
+        },
+        "svi": {
+          "mean": 0.5456098318099976,
+          "sd": 0.5416435722917641,
+          "low": -0.5159920625886039,
+          "high": 1.607211726208599,
+          "width": 2.123203788797203,
+          "spans_zero": true
+        },
+        "width_ratio_svi_over_grid": 0.9005146066919653,
         "verdict_agrees": true
       }
     ]
