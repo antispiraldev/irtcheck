@@ -67,6 +67,7 @@ from irtcheck.artifact import (
     FLAG_DEAD,
     FLAG_FLOOR,
     FLAG_INSUFFICIENT_DATA,
+    FLAG_INVERTED,
     FLAG_OFF_RANGE,
     FLOOR_THRESHOLD,
     IrtFit,
@@ -304,7 +305,7 @@ def verdict_lines(curve: Curve, header: Header) -> list[str]:
     if curve.verdict == VERDICT_UNREADABLE:
         return [
             f"None of the {curve.n_items} items are usable for measurement in this fit: "
-            "every one is flagged insufficient-data, ceiling or floor, or was answered by "
+            "every one is flagged insufficient-data, inverted, ceiling or floor, or was answered by "
             "nobody at all. The curve above is flat because there is nothing to draw.",
             "Add respondents before reading anything into where this suite measures.",
         ]
@@ -592,6 +593,7 @@ def esc(value: object) -> str:
 
 FLAG_CLASSES = {
     FLAG_DEAD: "dead",
+    FLAG_INVERTED: "inverted",
     FLAG_INSUFFICIENT_DATA: "unknown",
     FLAG_CEILING: "edge",
     FLAG_FLOOR: "edge",
@@ -612,6 +614,10 @@ STYLE = """
   --accent: #10627C; --accent-soft: #6FA8BC; --accent-dim: #DCEBF0;
   --warn: #9E6913; --warn-dim: #F3E4C8;
   --stop: #93373A; --stop-dim: #F7E7E6;
+  /* `inverted` gets its own colour rather than sharing `dead`'s red:
+     the two are opposite findings and a reader scanning chips should
+     not have to read the text to tell them apart. */
+  --invert: #6B3E8E;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -621,6 +627,7 @@ STYLE = """
     --accent: #5DB4CE; --accent-soft: #3C7E93; --accent-dim: #12303B;
     --warn: #D6A458; --warn-dim: #3A2D11;
     --stop: #DE8C8C; --stop-dim: #32201F;
+    --invert: #C39BDA;
   }
 }
 * { box-sizing: border-box; }
@@ -764,6 +771,7 @@ tr.unrankable td { color: var(--muted); }
   border: 1px solid var(--rule-firm); color: var(--ink-soft); margin-right: 4px;
 }
 .chip.dead { border-color: var(--stop); color: var(--stop); }
+.chip.inverted { border-color: var(--invert); color: var(--invert); }
 .chip.unknown { border-color: var(--warn); color: var(--warn); }
 .chip.off { border-color: var(--accent-soft); color: var(--accent); }
 .legend { font-size: 12.5px; color: var(--muted); margin-top: 14px; max-width: 92ch; }
@@ -959,10 +967,22 @@ def _header_rows(header: Header) -> str:
         (
             "dead",
             f"<b>{header.dead_count}</b> ({header.flag_rates[FLAG_DEAD]:.1%}) confidently "
-            "do not discriminate &mdash; the a interval lies entirely below "
-            f"{DEAD_THRESHOLD}<small>a finding about the suite</small>",
+            "do not discriminate &mdash; the whole a interval lies inside "
+            f"&plusmn;{DEAD_THRESHOLD}<small>a finding about the suite</small>",
         )
     )
+    if header.flag_counts[FLAG_INVERTED]:
+        rows.append(
+            (
+                "inverted",
+                f"<b>{header.flag_counts[FLAG_INVERTED]}</b> "
+                f"({header.flag_rates[FLAG_INVERTED]:.1%}) discriminate "
+                "<em>backwards</em> &mdash; the a interval lies wholly below zero, so "
+                "weaker respondents get these right more often<small>check the answer "
+                "key before dropping them: this is information pointing the wrong way, "
+                "not dead weight</small>",
+            )
+        )
     rows.append(
         (
             "insufficient-data",
@@ -1146,6 +1166,8 @@ def render_html(
         "its difficulty &middot; <b>b</b> difficulty, the ability at which the item is a "
         "coin flip &middot; <b>HDI</b> 95% credible interval &middot; <b>n</b> responses "
         "&middot; <b>dead</b> confidently does not discriminate &middot; "
+        "<b>inverted</b> confidently discriminates backwards &mdash; weaker "
+        "respondents get it right more often &middot; "
         "<b>insufficient-data</b> cannot be told either way, so not ranked &middot; "
         "<b>ceiling</b>/<b>floor</b> everyone got it right, or everyone got it wrong "
         "&middot; <b>off-range</b> difficulty outside the ability range these respondents "

@@ -163,25 +163,45 @@ branches that were each green alone. It asserts:
 
 - Work on a branch, open a PR. `master` only moves through a merged PR, because
   `contracts` is a merge-time check and a direct push skips it.
-- **`dead` and `insufficient-data` are different claims and must never both be
-  set.** `dead` means we are confident the item does not discriminate — the
-  upper end of its `a` interval is below `DEAD_THRESHOLD`. `insufficient-data`
-  means we cannot tell, because the interval spans zero. The first is a finding
-  about the suite; the second is a finding about the data the user supplied,
-  and it excludes the item from ranking and selection rather than ranking it
-  anyway. `IrtFit.validate()` rejects an item carrying both.
+- **`dead`, `inverted` and `insufficient-data` are three different claims and
+  no item may carry two.** They are three readings of one interval on `a`, and
+  `IrtFit.validate()` rejects any item carrying more than one:
+
+      spans zero               -> insufficient-data   we cannot tell
+      inside ±DEAD_THRESHOLD   -> dead                confidently negligible
+      wholly below zero, wider -> inverted            confidently backwards
+
+  `insufficient-data` is a finding about the *data the user supplied*; `dead`
+  is a finding about the *suite*; `inverted` is a finding about the *item* —
+  weaker respondents get it right more often, which usually means a mis-keyed
+  answer. An inverted item is the opposite of dead weight: it carries real
+  information pointing the wrong way, so the report says "check the key" rather
+  than "drop it".
+  **`inverted` was split out of `dead` in schema 2**, and it was not a
+  hypothetical tidy-up: under the old rule `hdi_high < DEAD_THRESHOLD` was
+  satisfied by `[0.05, 0.30]` and `[-1.17, -0.22]` alike, and on the real HELM
+  matrix *every* item that ever reached `dead` did so by the negative route —
+  32 of 3,551 at 95 respondents, 3 at twelve, none by the small-positive one.
+  The flag fired 35 times across two real fits and described the wrong thing
+  every time. See `docs/validation.md` §2e.
+  **Inverted items are excluded from `usable_items()` and `dead` items are
+  not**, and the asymmetry is the point. `dead` can stay eligible because
+  selection maximises information, information goes as `a²`, and a dead item's
+  `a` is confidently near zero — so it is never picked. That argument does not
+  extend to an inverted item, whose `|a|` is large: measured before the split,
+  an anchor set of 100 picked one with `a = -1.72` and a set of 400 picked all
+  three the suite had. An anchor set is scored by plain accuracy, and an item a
+  stronger model reliably gets *wrong* subtracts from the signal.
   At five to fifteen respondents **most low-information items land in
   `insufficient-data`, and `dead` is rare** — and rarer than this file used to
-  claim. `dead` needs the interval wholly inside `(0, DEAD_THRESHOLD)`: it has
-  to clear zero as well as the threshold, or the item is `insufficient-data`
-  instead. That caps `sd(a)` at `0.35 / (2 × 1.96) = 0.089`. Measured against
-  synthetic ground truth, **no item reaches `dead` at 300 respondents and
-  eighteen of 200 do at 1,000** — so it is a thousand respondents, not the
-  hundred stated here through waves 0-2. Below that, the few items that do reach
-  it get there via an interval lying wholly *below* zero, an item weaker models
-  get right more often. When it fires it is reliable: 27 of 29 items flagged
-  across six synthetic fits really do have a true `a` under the threshold.
-  That is the honest answer, and saying so is the product.
+  claim. `dead` needs the whole interval inside `±DEAD_THRESHOLD`, which caps
+  `sd(a)` at `0.35 / (2 × 1.96) = 0.089`. Measured against synthetic ground
+  truth, **no item reaches `dead` at 300 respondents and eighteen of 200 do at
+  1,000** — a thousand respondents, not the hundred stated here through waves
+  0-2. On real data it is rarer still: the HELM fits produce *no* `dead` items
+  at either twelve or 95 respondents, because the items that used to land there
+  are `inverted` instead. That is the honest answer, and saying so is the
+  product.
 - **`derives_from` is load-bearing.** Every respondent records the real model
   it came from. Leave-one-model-out must hold out *every pseudo-respondent
   derived from a model*, not one row: drop one and that model's other prompt

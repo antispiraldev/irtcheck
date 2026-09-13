@@ -85,6 +85,7 @@ irtcheck validate suite.irt
 
 - `fit` — parse, build response matrix, fit 2PL, persist parameters + posterior summaries + metadata (respondent count, item count, fit diagnostics).
 - `report` — per-item table (difficulty, discrimination, credible intervals, flags) plus suite-level diagnostics: respondent count, dead-item count, ceiling/floor rates, test information curve.
+  - *Amended after wave 2:* "dead item" turned out to cover two opposite findings, and they are now separate flags. `dead` is an item whose whole `a` interval lies inside ±`DEAD_THRESHOLD` — confidently negligible. `inverted` is one whose interval lies wholly below zero — it discriminates *backwards*, which usually means a mis-keyed answer, and it is the opposite of dead weight. Every item that reached `dead` on the real HELM matrix did so by the second route, so the original single flag was describing the wrong thing every time it fired. See `docs/validation.md` §2e.
 - `select` — emit a static anchor set of N items as JSON (item ids). Selection maximizes test information over the observed ability distribution.
 - `validate` — holdout rank correlation (see below). This is the headline number.
 
@@ -109,7 +110,7 @@ This is the demo. Build it early — it constrains everything else, and the numb
 
 - Terminal: rich table for `report`, plain summary for `validate`. Respect `--json` for machine consumption.
 - `--html`: single self-contained file, no external assets. The centerpiece is the **test information curve plotted against the ability distribution of the respondents in the matrix.** That plot is the pitch — it shows at a glance when a suite is measuring precisely in an ability range none of the user's models occupy.
-- Header block on every report: respondent count, item count, dead items, ceiling/floor rates, fit diagnostics.
+- Header block on every report: respondent count, item count, dead items, inverted items, ceiling/floor rates, fit diagnostics.
 
 ## Stack
 

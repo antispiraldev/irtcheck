@@ -36,6 +36,8 @@ that made every interval enormous would otherwise pass.
 
 from __future__ import annotations
 
+from functools import cache
+
 import numpy as np
 import pytest
 
@@ -63,10 +65,28 @@ REGIMES = {
 }
 
 
+@cache
+def fitted(n_models: int, n_items: int, seed: int):
+    """One fit per (regime, seed), shared by every test that wants that fit.
+
+    The `a` and `theta` coverage tests sweep the same three regimes over the
+    same three seeds, and `fit_2pl` is deterministic given its seed — so
+    without this they fit eighteen identical matrices where nine would do, and
+    the slow suite went from about five minutes to twenty-nine. Caching is safe
+    precisely because determinism is a documented property of `fit_2pl` and is
+    itself tested (test_fit_recovery.test_the_same_seed_gives_the_same_numbers).
+
+    Positional arguments, not keyword: `lru_cache` keys on the call signature,
+    so `fitted(15, 500, 0)` and `fitted(n_models=15, ...)` would be two
+    different entries and quietly restore the duplication this removes.
+    """
+    matrix, truth = synthetic_matrix(n_models=n_models, n_items=n_items, seed=seed)
+    return fit_2pl(matrix, seed=seed), truth
+
+
 def coverage_of(*, n_models: int, n_items: int, seed: int) -> tuple[float, float]:
     """(coverage of the true `a`, median interval width) for one fit."""
-    matrix, truth = synthetic_matrix(n_models=n_models, n_items=n_items, seed=seed)
-    fit = fit_2pl(matrix, seed=seed)
+    fit, truth = fitted(n_models, n_items, seed)
     # The fit's item order is its own; truth is indexed by item id.
     order = [list(truth.item_ids).index(item) for item in fit.item_ids]
     true_a = np.asarray(truth.a, dtype=float)[order]
@@ -74,6 +94,21 @@ def coverage_of(*, n_models: int, n_items: int, seed: int) -> tuple[float, float
     high = np.asarray(fit.a.hdi_high, dtype=float)
     covered = (low <= true_a) & (true_a <= high)
     return float(covered.mean()), float(np.median(high - low))
+
+
+@pytest.mark.slow
+def test_the_two_coverage_families_share_one_fit_per_regime():
+    """Guard the guard: without this, a refactor quietly doubles the slow suite.
+
+    The `a` and `theta` coverage tests sweep identical regimes and seeds. When
+    they each fitted their own matrix the slow suite took 29 minutes; sharing
+    the fit halves the work and nothing in either test's output changes,
+    because `fit_2pl` is deterministic given its seed. That is exactly the kind
+    of saving a later edit undoes without noticing, so it is asserted rather
+    than left as a comment.
+    """
+    assert fitted(15, 60, 0) is fitted(15, 60, 0)
+    assert fitted(15, 60, 0) is not fitted(15, 60, 1)
 
 
 @pytest.mark.slow
@@ -158,8 +193,7 @@ THETA_REGIMES = {
 
 
 def theta_coverage(*, n_models: int, n_items: int, seed: int) -> float:
-    matrix, truth = synthetic_matrix(n_models=n_models, n_items=n_items, seed=seed)
-    fit = fit_2pl(matrix, seed=seed)
+    fit, truth = fitted(n_models, n_items, seed)
     order = [list(truth.respondent_ids).index(r) for r in fit.respondent_ids]
     true_theta = np.asarray(truth.theta, dtype=float)[order]
     low = np.asarray(fit.theta.hdi_low, dtype=float)

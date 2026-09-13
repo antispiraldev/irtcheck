@@ -114,7 +114,7 @@ def _render(out: Console, report: ValidationReport) -> None:
     if any(r.short for r in report.results):
         out.print(
             "[yellow]*[/yellow] fewer items were available than requested — the rest are "
-            "flagged insufficient-data, ceiling or floor and are not eligible for selection."
+            "flagged insufficient-data, inverted, ceiling or floor and are not eligible for selection."
         )
     if report.n_models < 6:
         out.print(
