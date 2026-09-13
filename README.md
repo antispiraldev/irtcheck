@@ -56,7 +56,11 @@ Then:
 $ irtcheck fit responses.jsonl --respondent-key model_id,prompt_variant -o suite.irt
 20 respondents (10 real models, key model_id+prompt_variant), 600 items, 12,000 responses (100% of the grid)
 wrote suite.irt (70 KiB) in 11.3s — ELBO -7,544.9 over 2,000 epochs, seed 0
-  429 insufficient-data · 1 dead · 23 ceiling · 17 floor
+  429 insufficient-data · 0 dead · 1 inverted · 23 ceiling · 17 floor
+note: 1 item(s) discriminate backwards — weaker respondents get them right more
+often, which usually means a mis-keyed answer. They are excluded from ranking
+and selection. Check the key before dropping them: that is information pointing
+the wrong way, not dead weight.
 note: 429 of 600 items have a discrimination interval spanning zero — with this
 many respondents the data cannot tell whether they separate anyone. They are
 excluded from ranking and selection. More respondents is the fix.
@@ -71,15 +75,17 @@ $ irtcheck report suite.irt --limit 8
 │  they separate stronger models from weaker ones. That is a statement about   │
 │  the data supplied, not a verdict on the items.                              │
 │                                                                              │
-│  Separately, 1 item is flagged dead: there the fit is confident the item     │
-│  does not discriminate. That is a finding about the suite.                   │
+│  No items are flagged dead, which is expected rather than suspicious at      │
+│  this respondent count. One item is flagged inverted: it discriminates       │
+│  backwards, which usually means a mis-keyed answer.                          │
 │                                                                              │
 │  Cheapest next step — raise respondent count without running new models.     │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
       respondents  10 real models → 20 respondents (2.0 per model, --respondent-key model_id,prompt_variant)
-            items  600 items  (131 usable for ranking and selection)
-             dead  1 (0.2%)  confidently do not discriminate (a interval entirely below 0.35)
+            items  600 items  (130 usable for ranking and selection)
+             dead  0 (0.0%)  confidently do not discriminate (the whole a interval lies inside ±0.35)
+         inverted  1 (0.2%)  discriminate *backwards* — weaker respondents get these right more often
 insufficient-data  429 (71.5%)  cannot tell — a interval spans zero; excluded from ranking and selection
   ceiling / floor  ceiling 23 (3.8%, p ≥ 0.99)   floor 17 (2.8%, p ≤ 0.01)
         off-range  0 (0.0%)  difficulty outside the ability range these respondents occupy
@@ -93,7 +99,7 @@ $ irtcheck report suite.irt --html suite.html
 wrote suite.html          # self-contained, no external assets; the information curve is in here
 
 $ irtcheck select suite.irt -n 50 -o anchor.json
-50 of 131 usable items (600 total) · 10 models (20 respondents, key model_id+prompt_variant)
+50 of 130 usable items (600 total) · 10 models (20 respondents, key model_id+prompt_variant)
 Mean ability standard error over these models: 0.234 (1.000 with no items at all).
 Marginal gain: first item 0.5491, last item 0.2883. Where that flattens is where n stops buying precision.
 
@@ -109,7 +115,7 @@ Leave-one-model-out · 10 models · 600 items · 20 respondents (key model_id+pr
 
 **Ten models is below where this tool can rank items, and it says so.** That is
 the quickstart on purpose: 72% of the suite comes back "cannot tell", `report`
-leads with a refusal instead of a table, and the 131 items that survive still
+leads with a refusal instead of a table, and the 130 items that survive still
 recover the full-suite ranking to +0.92 from 25 of them. A tool that printed a
 confident table here would be making most of it up.
 
@@ -306,15 +312,23 @@ five real models the report says so.
 
 ---
 
-## `dead` and `insufficient-data` are different claims
+## `dead`, `inverted` and `insufficient-data` are three different claims
 
-This is the heart of the tool, so it is worth being precise. Both flags appear
-on items that are not earning their place, and they mean opposite things.
+This is the heart of the tool, so it is worth being precise. All three appear
+on items that are not earning their place, and they mean quite different
+things. They are three readings of one 95% interval on `a`:
 
-**`dead`** — we are confident the item does not discriminate. The upper end of
-its 95% interval on `a` is below `0.35`. Whatever ability a respondent has, this
-item barely changes its mind. **This is a finding about your suite**: the item
-is dead weight and you can drop it.
+**`dead`** — we are confident the item does not discriminate. The *whole*
+interval lies inside `±0.35`, so `|a|` is confidently negligible. Whatever
+ability a respondent has, this item barely changes its mind. **This is a
+finding about your suite**: the item is dead weight and you can drop it.
+
+**`inverted`** — we are confident the item discriminates *backwards*. The
+interval lies wholly below zero and is not negligible, so **weaker** models get
+it right more often than stronger ones. **This is a finding about the item**,
+and it is the opposite of dead weight: the item carries real information,
+pointing the wrong way. The usual cause is a mis-keyed answer or a question
+whose intended answer is wrong. Check the key before dropping it.
 
 **`insufficient-data`** — we cannot tell. The interval on `a` spans zero, so
 the fit cannot distinguish "separates strong models from weak ones" from
@@ -322,8 +336,17 @@ the fit cannot distinguish "separates strong models from weak ones" from
 data you gave us.** Such items are excluded from ranking and from selection
 rather than ranked anyway, and the report points at adding respondents.
 
-They are never both set on one item; `IrtFit.validate()` rejects an artifact
-that claims both about anything.
+No item carries two of them; `IrtFit.validate()` rejects an artifact that
+claims more than one about anything.
+
+`inverted` and `insufficient-data` items are excluded from anchor-set
+selection; `dead` items are not, and the asymmetry is deliberate. Selection
+maximises information, information goes as `a²`, and a dead item's `a` is
+confidently near zero — so it is never picked anyway. An inverted item's `|a|`
+is *large*, so selection finds it attractive; before these were separated, an
+anchor set of 400 on the real matrix below picked every inverted item the suite
+had. An anchor set is scored by plain accuracy, and an item a stronger model
+reliably gets wrong subtracts from exactly the signal you wanted.
 
 **At five to fifteen respondents, most low-information items land in
 `insufficient-data` and `dead` is rare.** In the quickstart above, 20
@@ -560,9 +583,10 @@ spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 13 s:
 
 |                     | 12 real models × 3,551 items | synthetic, 20 respondents × 600 items |
 | ------------------- | ---------------------------- | ------------------------------------- |
-| usable for ranking  | 568 (16.0%)                  | 131 (21.8%)                           |
+| usable for ranking  | 568 (16.0%)                  | 130 (21.7%)                           |
 | `insufficient-data` | 2,980 (83.9%)                | 429 (71.5%)                           |
-| `dead`              | 3 (0.08%)                    | 1 (0.2%)                              |
+| `dead`              | 0                            | 0                                     |
+| `inverted`          | 3 (0.08%)                    | 1 (0.2%)                              |
 | `ceiling` / `floor` | 3.8% / 4.3%                  | 3.8% / 2.8%                           |
 
 **The small-N behaviour this README describes is not an artefact of how
@@ -600,17 +624,19 @@ data, the claim this tool's refusal behaviour rests on:**
 | ------------------ | ------------- | ------------- |
 | usable for ranking | 568 (16.0%)   | 2,918 (82.2%) |
 | `insufficient-data`| 2,980 (83.9%) | 601 (16.9%)   |
-| `dead`             | 3 (0.08%)     | 32 (0.90%)    |
+| `dead`             | 0             | 0             |
+| `inverted`         | 3 (0.08%)     | 32 (0.90%)    |
 
 Nothing about the items changed. The only thing that changed was how much
 evidence there was about each one. "We cannot tell" became "we can tell" for
 two thirds of the suite. That is `insufficient-data` being a statement about
 your data, demonstrated rather than asserted.
 
-The `dead` row turned out to say something other than what the flag claims, and
-it is worth knowing before you act on it: every one of those 32 items is
-`dead` because its interval on `a` lies wholly *below* zero, meaning weaker
-models get it right more often — not because it fails to discriminate.
+The `dead` row is where the `inverted` flag came from. Under the original rule
+every one of those 32 items counted as `dead` — because its interval on `a`
+lies wholly *below* zero, meaning weaker models get it right more often, not
+because it fails to discriminate. Split apart, this matrix has **no** `dead`
+items at either respondent count and 32 `inverted` ones.
 [`docs/validation.md`](docs/validation.md) §2e has the detail.
 
 ### On real data: the anchor-set claim is much weaker, and you should know that

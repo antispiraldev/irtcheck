@@ -229,7 +229,7 @@ def select_anchor(
             )
         raise SelectError(
             "no items are eligible for selection — every item is flagged "
-            "insufficient-data, ceiling or floor. With this many respondents most "
+            "insufficient-data, inverted, ceiling or floor. With this many respondents most "
             "items cannot be read at all; add respondents (temperature samples or "
             "prompt variants via --respondent-key) before selecting an anchor set."
         )

@@ -61,6 +61,7 @@ def make_truth(
     variants_per_model: int = 1,
     dead_fraction: float = 0.15,
     off_range_fraction: float = 0.08,
+    inverted_fraction: float = 0.0,
     seed: int = 0,
 ) -> SyntheticTruth:
     """Draw a plausible universe of item and respondent parameters.
@@ -99,9 +100,16 @@ def make_truth(
     dead_idx = rng.choice(n_items, size=n_dead, replace=False)
     a[dead_idx] = rng.uniform(0.02, 0.22, size=n_dead)
 
+    # Drawn well clear of -DEAD_THRESHOLD so these are unambiguously inverted
+    # rather than merely negligible-and-negative, which is `dead`.
+    n_inverted = int(round(inverted_fraction * n_items))
+    spare = np.setdiff1d(np.arange(n_items), dead_idx)
+    inverted_idx = rng.choice(spare, size=min(n_inverted, spare.size), replace=False)
+    a[inverted_idx] = -rng.uniform(0.8, 2.2, size=inverted_idx.size)
+
     b = rng.normal(0.0, 1.05, size=n_items)
     n_off = int(round(off_range_fraction * n_items))
-    remaining = np.setdiff1d(np.arange(n_items), dead_idx)
+    remaining = np.setdiff1d(np.arange(n_items), np.union1d(dead_idx, inverted_idx))
     off_idx = rng.choice(remaining, size=min(n_off, remaining.size), replace=False)
     b[off_idx] = rng.normal(0.0, 0.35, size=off_idx.size) + np.where(
         rng.random(off_idx.size) < 0.5, -4.2, 4.2

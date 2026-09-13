@@ -24,22 +24,42 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-# Flags an item can carry. Two of these are constantly conflated and must not
-# be — the distinction is the whole "refusal is a feature" argument in the spec.
+# Flags an item can carry. Three of these are about `a` and are constantly
+# conflated; keeping them apart is the whole "refusal is a feature" argument in
+# the spec.
 #
-#   DEAD              we are confident this item does not discriminate: the
-#                     upper end of its `a` interval is below DEAD_THRESHOLD.
-#                     A finding about the *suite*. Reportable, excludable.
+#   DEAD              we are confident this item does not discriminate: its
+#                     whole `a` interval lies inside (-DEAD_THRESHOLD,
+#                     +DEAD_THRESHOLD), so |a| is confidently negligible
+#                     whichever side of zero it falls. A finding about the
+#                     *suite*. Reportable, excludable.
+#
+#   INVERTED          we are confident this item discriminates *backwards*:
+#                     its `a` interval lies wholly below zero and is not
+#                     negligible. Weaker respondents get it right more often —
+#                     a mis-keyed answer, or a question whose intended answer
+#                     is wrong. A finding about the *item*, and the opposite of
+#                     dead weight: it carries real information, pointing the
+#                     wrong way.
 #
 #   INSUFFICIENT_DATA we cannot tell: the `a` interval spans zero. A finding
 #                     about the *data the user gave us*. Excluded from ranking
 #                     and from selection rather than ranked anyway, and the
 #                     report points at adding respondents.
 #
-# An item flagged INSUFFICIENT_DATA is never also flagged DEAD.
+# The three are mutually exclusive by construction, and validate() enforces it.
+#
+# INVERTED was split out of DEAD in schema 2. Under schema 1 the rule was
+# "hdi_high < DEAD_THRESHOLD", which is satisfied by [0.05, 0.30] and by
+# [-1.17, -0.22] alike, so a confidently backwards item was reported as dead
+# weight a user could drop. On real HELM data that was not a corner case: every
+# single item flagged dead — 32 of 3,551 at 95 respondents, 3 at twelve — was
+# there by the negative route, and none by the small-positive one. See
+# docs/validation.md §2e.
 FLAG_DEAD = "dead"
+FLAG_INVERTED = "inverted"
 FLAG_INSUFFICIENT_DATA = "insufficient-data"
 FLAG_CEILING = "ceiling"
 FLAG_FLOOR = "floor"
@@ -47,6 +67,7 @@ FLAG_OFF_RANGE = "off-range"
 
 ALL_FLAGS = (
     FLAG_DEAD,
+    FLAG_INVERTED,
     FLAG_INSUFFICIENT_DATA,
     FLAG_CEILING,
     FLAG_FLOOR,
@@ -190,12 +211,26 @@ class IrtFit:
     def usable_items(self) -> list[int]:
         """Item indices eligible for ranking and selection.
 
-        Excludes insufficient-data (we cannot tell) and ceiling/floor (nothing
-        to tell). Dead items stay in: they are a confident finding, and a caller
-        that wants them gone can filter. Selection maximises information, so a
-        dead item would not be picked anyway.
+        Excludes insufficient-data (we cannot tell), ceiling/floor (nothing to
+        tell), and inverted (it tells you the opposite of what you would read
+        off it).
+
+        Dead items stay in: they are a confident finding, a caller that wants
+        them gone can filter, and selection maximises information so a dead
+        item is never worth picking — its `a` is confidently near zero, and
+        information goes as `a^2`.
+
+        **That argument is exactly why inverted items cannot stay.** It used to
+        cover them, because they used to be flagged dead; but an inverted item
+        has a large `|a|` and therefore a large `a^2`, so selection finds it
+        attractive rather than ignoring it. Measured on the twelve-model HELM
+        matrix before this split: an anchor set of 100 picked one item with
+        a = -1.72, and a set of 400 picked all three the suite had. An anchor
+        set is scored by plain accuracy over its items — that is what the README
+        tells people to do with one — and an item a stronger model reliably gets
+        *wrong* subtracts from exactly the signal the set is meant to carry.
         """
-        skip = {FLAG_INSUFFICIENT_DATA, FLAG_CEILING, FLAG_FLOOR}
+        skip = {FLAG_INSUFFICIENT_DATA, FLAG_CEILING, FLAG_FLOOR, FLAG_INVERTED}
         return [i for i, flags in enumerate(self.flags) if not skip.intersection(flags)]
 
     def matrix(self):
@@ -329,12 +364,19 @@ class IrtFit:
         unknown = {f for flags in self.flags for f in flags} - set(ALL_FLAGS)
         if unknown:
             raise ArtifactError(f"unknown item flag(s): {', '.join(sorted(unknown))}")
+        exclusive = (FLAG_DEAD, FLAG_INVERTED, FLAG_INSUFFICIENT_DATA)
+        meaning = {
+            FLAG_DEAD: "we are confident it does not discriminate",
+            FLAG_INVERTED: "we are confident it discriminates backwards",
+            FLAG_INSUFFICIENT_DATA: "we cannot tell",
+        }
         for i, flags in enumerate(self.flags):
-            if FLAG_DEAD in flags and FLAG_INSUFFICIENT_DATA in flags:
+            both = [f for f in exclusive if f in flags]
+            if len(both) > 1:
+                claims = " and ".join(f"{f!r} ({meaning[f]})" for f in both)
                 raise ArtifactError(
-                    f"item {self.item_ids[i]!r} is flagged both {FLAG_DEAD} and "
-                    f"{FLAG_INSUFFICIENT_DATA}. 'we are confident it does not "
-                    "discriminate' and 'we cannot tell' are mutually exclusive claims."
+                    f"item {self.item_ids[i]!r} is flagged {claims}. Those are "
+                    "mutually exclusive claims about one interval."
                 )
 
 
@@ -363,11 +405,19 @@ def compute_flags(
     flags: list[list[str]] = []
     for i in range(len(a)):
         item: list[str] = []
+        # Three mutually exclusive readings of one interval, in the order that
+        # makes them exclusive: can we tell at all; is it confidently
+        # negligible; is it confidently backwards.
         undetermined = a.hdi_low[i] <= 0.0 <= a.hdi_high[i]
+        negligible = -dead_threshold < a.hdi_low[i] and a.hdi_high[i] < dead_threshold
         if undetermined:
             item.append(FLAG_INSUFFICIENT_DATA)
-        elif a.hdi_high[i] < dead_threshold:
+        elif negligible:
+            # Inside (-T, T) and clear of zero: |a| is confidently below the
+            # threshold, so it separates nobody whichever sign it has.
             item.append(FLAG_DEAD)
+        elif a.hdi_high[i] < 0.0:
+            item.append(FLAG_INVERTED)
 
         # An item nobody answered has p_correct = NaN, and neither "everyone got
         # it right" nor "everyone got it wrong" is a claim you can make about

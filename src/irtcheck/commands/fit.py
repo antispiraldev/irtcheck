@@ -27,6 +27,7 @@ from irtcheck.artifact import (
     FLAG_DEAD,
     FLAG_FLOOR,
     FLAG_INSUFFICIENT_DATA,
+    FLAG_INVERTED,
 )
 from irtcheck.io import read_any
 from irtcheck.matrix import (
@@ -211,11 +212,21 @@ def _summarise(console: Console, fit, output: Path, elapsed: float) -> None:
         f"ELBO {fit.diagnostics['elbo_final']:,.1f} over "
         f"{fit.diagnostics['epochs']:,} epochs, seed {fit.diagnostics['seed']}"
     )
+    inverted = counts.get(FLAG_INVERTED, 0)
     console.print(
         f"  {counts.get(FLAG_INSUFFICIENT_DATA, 0)} insufficient-data · "
         f"{counts.get(FLAG_DEAD, 0)} dead · "
-        f"{counts.get(FLAG_CEILING, 0)} ceiling · {counts.get(FLAG_FLOOR, 0)} floor"
+        + (f"[magenta]{inverted} inverted[/magenta] · " if inverted else "")
+        + f"{counts.get(FLAG_CEILING, 0)} ceiling · {counts.get(FLAG_FLOOR, 0)} floor"
     )
+    if inverted:
+        console.print(
+            f"[yellow]note:[/yellow] {inverted} item(s) discriminate backwards — "
+            "weaker respondents get them right more often, which usually means a "
+            "mis-keyed answer. They are excluded from ranking and selection. "
+            "Check the key before dropping them: that is information pointing the "
+            "wrong way, not dead weight."
+        )
     undetermined = counts.get(FLAG_INSUFFICIENT_DATA, 0)
     if undetermined > fit.n_items // 2:
         console.print(

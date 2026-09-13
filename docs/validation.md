@@ -194,9 +194,10 @@ CPU). The report header:
 
 | | 12 models × 3,551 items | synthetic, 20 respondents × 600 items |
 | --- | --- | --- |
-| usable for ranking  | 568 (16.0%)   | 131 (21.8%) |
+| usable for ranking  | 568 (16.0%)   | 130 (21.7%) |
 | `insufficient-data` | 2,980 (83.9%) | 429 (71.5%)   |
-| `dead`              | 3 (0.08%)     | 1 (0.2%)      |
+| `dead`              | 0             | 0             |
+| `inverted`          | 3 (0.08%)     | 1 (0.2%)      |
 | `ceiling`           | 3.8%          | 3.8%          |
 | `floor`             | 4.3%          | 2.8%          |
 
@@ -477,14 +478,16 @@ seen by two very different numbers of respondents. The fit takes **19.4 s** for
 | ------------------ | ------------- | ------------- |
 | usable for ranking | 568 (16.0%)   | 2,918 (82.2%) |
 | `insufficient-data`| 2,980 (83.9%) | 601 (16.9%)   |
-| `dead`             | 3 (0.08%)     | 32 (0.90%)    |
+| `dead`             | 0             | 0             |
+| `inverted`         | 3 (0.08%)     | 32 (0.90%)    |
 | `ceiling`          | 3.8%          | 0.0%          |
 | `floor`            | 4.3%          | 1.5%          |
 | `report` verdict   | refusal       | none          |
 
 **The claim holds, measured on real data.** Going from 12 to 95 respondents on
 the *same 3,551 items* collapses `insufficient-data` by a factor of five and
-multiplies `dead` by ten. Nothing about the items changed; the only thing that
+multiplies `inverted` by ten — the flag that used to be `dead` here, and which
+also needs evidence before it can fire. Nothing about the items changed; the only thing that
 changed was how much evidence there was about each one. "We cannot tell"
 becomes "we can tell" for two thirds of the suite. This is the strongest
 argument for `--respondent-key` in the documentation, and the clearest
@@ -519,22 +522,45 @@ Two consequences worth separating:
 
 - **For this data**, the flag pointed at something worth looking at, which is
   what it is for.
-- **For the tool**, `dead` currently merges two different claims —
-  "confidently flat" and "confidently inverted" — under a label that describes
-  only the first. The rule is `hdi_high < DEAD_THRESHOLD`, and an interval of
-  `[-1.17, -0.22]` satisfies it as readily as `[0.05, 0.30]` does. On synthetic
-  data the two routes separate by respondent count: the small-positive route
-  needs `sd(a) < 0.089`, so no item reaches it at 300 respondents and eighteen
-  of 200 do at 1,000, while the negative route fires at any size. On real data
-  the negative route is the only one that fires at all, which is why the
-  "thousand respondents" figure — true of the small-positive route — should not
-  be read as "`dead` is unreachable below a thousand respondents". It is not.
+- **For the tool**, `dead` was merging two different claims — "confidently
+  flat" and "confidently inverted" — under a label that describes only the
+  first. It has since been **split**, in schema 2.
 
-  This predates the interval change; the rule is untouched. §2f made it visible
-  by widening every interval. It is **filed rather than fixed**, because
-  splitting `dead` into two flags changes the artifact's flag vocabulary, which
-  `IrtFit.validate()`, `synth.py`, the report, the HTML and CLAUDE.md's
-  invariant list all encode — not something to do in passing.
+### The split, and what it changed
+
+`inverted` is now its own flag, and the rule is three mutually exclusive
+readings of one interval:
+
+    spans zero                     -> insufficient-data   we cannot tell
+    inside ±DEAD_THRESHOLD         -> dead                confidently negligible
+    wholly below zero, and wider   -> inverted            confidently backwards
+
+Re-running both fits under it, `dead` goes to **zero** on real data and every
+item that used to carry it is now `inverted`: 3 at twelve models, 32 at 95.
+That is the honest reading — this matrix contains no item the fit is confident
+is merely flat, and 32 it is confident are backwards.
+
+Two things the split fixed that were not the point of it:
+
+**Selection was picking inverted items.** `usable_items()` kept `dead` items
+eligible, on the stated grounds that "selection maximises information, so a
+dead item would not be picked anyway". True of a genuinely flat item, whose
+`a` is near zero and whose information goes as `a²` — and false of an inverted
+one, whose `|a|` is large. Measured on the twelve-model matrix before the
+split, an anchor set of 100 picked one item with `a = -1.72`, and a set of 400
+picked all three the suite had. An anchor set is scored by plain accuracy —
+that is what the README tells people to do with one — so an item a stronger
+model reliably gets *wrong* subtracts from exactly the signal it is meant to
+carry. Inverted items are now excluded; `dead` items still are not.
+
+**`report` and `select` disagreed about "usable".** The report counted 568
+usable items at twelve models while `select` could draw from 571, the
+difference being the three inverted ones. The two now name the same set.
+
+And the "thousand respondents" figure from §2f should not be read as "`dead` is
+unreachable below a thousand respondents". That is true of the negligible-`a`
+route only. The backwards route fires at any size, and before the split it was
+the only one that ever fired on real data.
 
 ### 2f. The interval on `a` was too narrow, and the tool refused too little
 

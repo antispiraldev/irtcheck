@@ -53,6 +53,7 @@ from irtcheck.artifact import (
     FLAG_DEAD,
     FLAG_FLOOR,
     FLAG_INSUFFICIENT_DATA,
+    FLAG_INVERTED,
     FLAG_OFF_RANGE,
     FLOOR_THRESHOLD,
     IrtFit,
@@ -473,7 +474,7 @@ def build_refusal(header: Header) -> Refusal:
         contrast = (
             "No items are flagged dead, which is expected rather than suspicious at this "
             "respondent count: 'dead' needs an interval narrow enough to sit wholly "
-            f"inside (0, {DEAD_THRESHOLD}) — it has to clear zero too, or the item is "
+            f"inside ±{DEAD_THRESHOLD} and clear of zero, or the item is "
             "insufficient-data instead. That caps the standard error at 0.089, which "
             "measures out at roughly a thousand respondents, not a hundred. Below that, "
             "an item that does not discriminate comes back insufficient-data."
@@ -644,9 +645,24 @@ def render_header(header: Header) -> Panel:
     dead.append(f"{header.dead_count}", style="bold red")
     dead.append(
         f" ({_pct(header.flag_rates[FLAG_DEAD])})  confidently do not discriminate "
-        f"(a interval entirely below {DEAD_THRESHOLD})",
+        f"(the whole a interval lies inside ±{DEAD_THRESHOLD})",
     )
     grid.add_row("dead", dead)
+
+    # Separate from dead on purpose: an inverted item is not dead weight, it is
+    # information pointing the wrong way, and telling a user to drop it loses a
+    # finding worth acting on.
+    inverted_count = header.flag_counts[FLAG_INVERTED]
+    if inverted_count:
+        inverted = Text()
+        inverted.append(f"{inverted_count}", style="bold magenta")
+        inverted.append(
+            f" ({_pct(header.flag_rates[FLAG_INVERTED])})  discriminate *backwards* — "
+            "the a interval lies wholly below zero, so weaker respondents get these "
+            "right more often. Check the answer key before dropping them; they are "
+            "excluded from ranking and selection."
+        )
+        grid.add_row("inverted", inverted)
 
     unknown = Text()
     unknown.append(f"{header.insufficient_count}", style="bold yellow")

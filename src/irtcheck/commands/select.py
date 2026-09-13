@@ -86,7 +86,7 @@ def _summarise(err: Console, fit: IrtFit, anchor: AnchorSet) -> None:
         err.print(
             f"[yellow]Asked for {anchor.requested}, selected {anchor.n_selected}.[/yellow] "
             f"Only {anchor.n_usable} of {fit.n_items} items are eligible; the rest are "
-            "flagged insufficient-data, ceiling or floor. Padding the set with items we "
+            "flagged insufficient-data, inverted, ceiling or floor. Padding the set with items we "
             "said we could not read would be worse than a short one."
         )
     err.print(
