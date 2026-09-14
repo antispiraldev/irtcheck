@@ -66,6 +66,25 @@ def test_schema_version_is_a_positive_int():
     assert isinstance(SCHEMA_VERSION, int) and SCHEMA_VERSION > 0
 
 
+def test_the_package_version_has_one_source():
+    """`pyproject.toml` must not carry a version of its own.
+
+    It used to, beside `__init__.py`'s. The release workflow's tag check read one
+    and `irtcheck --version` read the other, so a bump that touched only one
+    passed the gate and published a wheel whose filename and whose `--version`
+    disagreed — the kind of release that cannot be fixed, because PyPI does not
+    take a filename twice.
+    """
+    import tomllib
+
+    project = tomllib.loads((SRC.parents[1] / "pyproject.toml").read_text())
+    assert "version" not in project["project"], "pyproject.toml has a static version again"
+    assert "version" in project["project"].get("dynamic", [])
+    assert project["tool"]["hatch"]["version"]["path"] == "src/irtcheck/__init__.py"
+    assignments = re.findall(r'^__version__ = "([^"]+)"$', (SRC / "__init__.py").read_text(), re.M)
+    assert len(assignments) == 1, f"__init__.py assigns __version__ {len(assignments)} times"
+
+
 def test_an_artifact_round_trips(tmp_path):
     """Deliberately duplicated from test_artifact.py. This job is the one that
     must fail loudly on a bad merge, so it does not depend on another file's
