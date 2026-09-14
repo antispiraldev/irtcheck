@@ -248,6 +248,25 @@ branches that were each green alone. It asserts:
   stay where they are and new commits do without. If you would rather have them,
   change this line — but do not leave the two disagreeing again.
 
+## Releasing
+
+**The version lives only in `src/irtcheck/__init__.py`.** `pyproject.toml`
+reads it through `[tool.hatch.version]`, and `test_the_package_version_has_one_source`
+fails if a static version comes back — it used to exist in both, and the tag
+gate read one while `irtcheck --version` read the other.
+
+    gh workflow run release.yml --ref <branch> -f target=testpypi   # rehearse
+    git tag -a vX.Y.Z -m "irtcheck X.Y.Z" && git push origin vX.Y.Z   # publish
+
+A rehearsal builds `<version>.dev<run id><attempt>`, publishes it to TestPyPI,
+installs it back from TestPyPI on 3.11-3.13, and runs
+`.github/release/quickstart.sh` against that install. A tag must match
+`__version__` or `.github/release/decide.py` refuses before anything is built.
+Both indexes use Trusted Publishing, so there are no tokens to manage, and a
+publish job fails until its pending publisher and GitHub environment
+(`pypi`, `testpypi`) exist. **PyPI never accepts a filename twice**, so a
+real version number is spent the moment its upload succeeds — rehearse first.
+
 ## Testing a stochastic fit
 
 SVI is stochastic, and a flaky test across four concurrent agents costs more

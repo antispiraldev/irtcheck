@@ -593,7 +593,7 @@ spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 13 s:
 `synth.py` draws parameters** — it is what real model responses do too, with the
 real matrix somewhat harsher than the synthetic one at comparable respondent
 count. Both columns were re-measured after the interval fix below, from a matrix
-rebuilt with the scripts in [`scripts/`](scripts/). `ceiling` came out at 3.8%
+rebuilt with the scripts in [`scripts/`](https://github.com/antispiraldev/irtcheck/tree/master/scripts). `ceiling` came out at 3.8%
 and `floor` at 4.3% before and after, to the decimal, which is the check that
 the rebuild is the same matrix: those two flags read observed rates rather than
 intervals, so they should not have moved.
@@ -637,7 +637,7 @@ every one of those 32 items counted as `dead` — because its interval on `a`
 lies wholly *below* zero, meaning weaker models get it right more often, not
 because it fails to discriminate. Split apart, this matrix has **no** `dead`
 items at either respondent count and 32 `inverted` ones.
-[`docs/validation.md`](docs/validation.md) §2e has the detail.
+[`docs/validation.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md) §2e has the detail.
 
 ### On real data: the anchor-set claim is much weaker, and you should know that
 
@@ -660,7 +660,7 @@ look: n=400 could only supply **204** eligible items, and those 204 scored
 eligible. Half the anchor set, a better ranking. Four candidate causes — a unidimensional 2PL fitted
 across maths, law and commonsense, twelve respondents being thin for a rank
 correlation, mislabelled responses, and multiple-choice guessing a 2PL has no
-parameter for — are laid out in [`docs/validation.md`](docs/validation.md) **as
+parameter for — are laid out in [`docs/validation.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md) **as
 hypotheses, none of them measured**, along with how two of them could be tested
 on the same data.
 
@@ -672,7 +672,7 @@ that reported +0.99 here would be broken.
 
 The full method, the per-scenario tables, a non-IRT cross-check that agrees,
 the places where it disagrees, and the commands to reproduce all of it are in
-[`docs/validation.md`](docs/validation.md).
+[`docs/validation.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md).
 
 ### What we have not done
 
@@ -741,10 +741,10 @@ pip install typer rich numpy scipy pytest && pip install -e . --no-deps
 
 `src/irtcheck/fit/` is the only package permitted to import torch or pyro, and
 only inside function bodies or at its own module scope. Two CI jobs enforce it
-from different angles. See [`CLAUDE.md`](CLAUDE.md) for that and the rest of the
-constraints that bite, [`docs/spec.md`](docs/spec.md) for the design, and
-[`docs/build-plan.html`](docs/build-plan.html) for how it was built.
+from different angles. See [`CLAUDE.md`](https://github.com/antispiraldev/irtcheck/blob/master/CLAUDE.md) for that and the rest of the
+constraints that bite, [`docs/spec.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/spec.md) for the design, and
+[`docs/build-plan.html`](https://github.com/antispiraldev/irtcheck/blob/master/docs/build-plan.html) for how it was built.
 
 ## Licence
 
-MIT.
+MIT — see [`LICENSE`](https://github.com/antispiraldev/irtcheck/blob/master/LICENSE).
