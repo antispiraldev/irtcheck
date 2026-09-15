@@ -66,7 +66,9 @@ packages = ["src/irtcheck"]
 # a 3.11 runner (wave 2, agent F). It is a validation exercise, not shippable
 # code, and it must never enter the wheel.
 [tool.hatch.build.targets.sdist]
-exclude = ["/crosscheck", "/docs", "/.github", "/.claude"]
+# studies/ is the same kind of thing: the minimum-respondent sweep behind
+# docs/validation.md section 4, run by hand and never imported by the package.
+exclude = ["/crosscheck", "/studies", "/docs", "/.github", "/.claude"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
