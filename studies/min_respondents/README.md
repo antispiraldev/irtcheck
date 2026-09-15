@@ -56,3 +56,6 @@ difference readable at six seeds.
   epochs.
 - `results.txt` — every table, including paired differences and where the
   planted mis-keyed items end up.
+- `padding.py`, `padding.txt` — what a short anchor set should be filled with,
+  the measurement behind `select`'s padding. Reads the same artifacts and
+  `results.json`; ~3 minutes.

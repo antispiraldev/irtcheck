@@ -55,20 +55,20 @@ Then:
 ```console
 $ irtcheck fit responses.jsonl --respondent-key model_id,prompt_variant -o suite.irt
 20 respondents (10 real models, key model_id+prompt_variant), 600 items, 12,000 responses (100% of the grid)
-wrote suite.irt (70 KiB) in 11.3s — ELBO -7,544.9 over 2,000 epochs, seed 0
-  429 insufficient-data · 0 dead · 1 inverted · 23 ceiling · 17 floor
+wrote suite.irt (72 KiB) in 11.8s — ELBO -7,389.7 over 2,000 epochs, seed 0
+  378 insufficient-data · 0 dead · 1 inverted · 22 ceiling · 16 floor
 note: 1 item(s) discriminate backwards — weaker respondents get them right more
 often, which usually means a mis-keyed answer. They are excluded from ranking
 and selection. Check the key before dropping them: that is information pointing
 the wrong way, not dead weight.
-note: 429 of 600 items have a discrimination interval spanning zero — with this
+note: 378 of 600 items have a discrimination interval spanning zero — with this
 many respondents the data cannot tell whether they separate anyone. They are
 excluded from ranking and selection. More respondents is the fix.
 next: irtcheck report suite.irt
 
 $ irtcheck report suite.irt --limit 8
 ╭──────────────────────── cannot rank these items yet ─────────────────────────╮
-│  Not enough respondents to rank these items: 429 of 600 items (72%) are      │
+│  Not enough respondents to rank these items: 378 of 600 items (63%) are      │
 │  insufficient-data.                                                          │
 │                                                                              │
 │  Their discrimination interval spans zero, so this fit cannot tell whether   │
@@ -83,41 +83,43 @@ $ irtcheck report suite.irt --limit 8
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
       respondents  10 real models → 20 respondents (2.0 per model, --respondent-key model_id,prompt_variant)
-            items  600 items  (130 usable for ranking and selection)
+            items  600 items  (190 usable for ranking and selection)
              dead  0 (0.0%)  confidently do not discriminate (the whole a interval lies inside ±0.35)
          inverted  1 (0.2%)  discriminate *backwards* — weaker respondents get these right more often
-insufficient-data  429 (71.5%)  cannot tell — a interval spans zero; excluded from ranking and selection
-  ceiling / floor  ceiling 23 (3.8%, p ≥ 0.99)   floor 17 (2.8%, p ≤ 0.01)
+insufficient-data  378 (63.0%)  cannot tell — a interval spans zero; excluded from ranking and selection
+  ceiling / floor  ceiling 22 (3.7%, p ≥ 0.99)   floor 16 (2.7%, p ≤ 0.01)
         off-range  0 (0.0%)  difficulty outside the ability range these respondents occupy
 
   item          a     a 95% HDI      b       b 95% HDI     n   p(correct)  flags
-  item_00318  1.88   [0.56, 3.19]  -0.81  [-1.49, -0.14]  20        0.75
-  item_00165  1.84   [0.49, 3.19]  -1.06  [-1.80, -0.31]  20        0.80
+  item_00518  2.27   [0.83, 3.71]  -0.09  [-0.63, 0.45]   20        0.50
+  item_00165  2.16   [0.75, 3.57]  -0.26  [-0.82, 0.29]   20        0.55
   ...
 
 $ irtcheck report suite.irt --html suite.html
 wrote suite.html          # self-contained, no external assets; the information curve is in here
 
 $ irtcheck select suite.irt -n 50 -o anchor.json
-50 of 130 usable items (600 total) · 10 models (20 respondents, key model_id+prompt_variant)
-Mean ability standard error over these models: 0.234 (1.000 with no items at all).
-Marginal gain: first item 0.5491, last item 0.2883. Where that flattens is where n stops buying precision.
+50 of 190 usable items (600 total) · 10 models (20 respondents, key model_id+prompt_variant)
+Mean ability standard error over these models: 0.220 (1.000 with no items at all).
+Marginal gain: first item 0.6285, last item 0.3553. Where that flattens is where n stops buying precision.
 
 $ irtcheck validate suite.irt
 Leave-one-model-out · 10 models · 600 items · 20 respondents (key model_id+prompt_variant)
     n  items  Spearman  Kendall tau  Spearman (theta)  tau (theta)
-   25     25    +0.921       +0.796            +0.927       +0.822
-   50     50    +0.964       +0.911            +0.964       +0.911
-  100     74*   +0.976       +0.911            +0.952       +0.867
-  200     74*   +0.964       +0.911            +0.952       +0.867
-  400     74*   +0.964       +0.911            +0.952       +0.867
+   25     25    +0.994       +0.978            +0.988       +0.956
+   50     50    +0.988       +0.956            +0.976       +0.911
+  100    100    +1.000       +1.000            +1.000       +1.000
+  200    200    +1.000       +1.000            +1.000       +1.000
+  400    400    +1.000       +1.000            +1.000       +1.000
 ```
 
 **Ten models is below where this tool can rank items, and it says so.** That is
-the quickstart on purpose: 72% of the suite comes back "cannot tell", `report`
-leads with a refusal instead of a table, and the 130 items that survive still
-recover the full-suite ranking to +0.92 from 25 of them. A tool that printed a
-confident table here would be making most of it up.
+the quickstart on purpose: 63% of the suite comes back "cannot tell", `report`
+leads with a refusal instead of a table, and the 190 items that survive still
+recover the full-suite ranking to +0.99 from 25 of them. A tool that printed a
+confident table here would be making most of it up. (At n=200 and 400 the
+held-out fits run out of confident items and `select` pads the rest — see
+[`select`](#select).)
 
 That last table is the headline: a 25-item subset, chosen by a fit that never
 saw the model it was then used to rank, put ten models in almost exactly their
@@ -125,7 +127,7 @@ full-suite order.
 
 > **Those numbers are from synthetic data, and the real ones are much weaker.**
 > On a real 12-model × 3,551-item matrix the same command gives Spearman
-> **+0.691 at n=25** and **+0.890 at n=400** — not +0.921 and +0.976. The
+> **+0.691 at n=25** and **+0.881 at n=400** — not +0.994 and +1.000. The
 > synthetic table checks that the code is correct; it is not evidence that
 > twenty-five items are enough for your suite. Read
 > [Does it actually work?](#does-it-actually-work) before quoting either.
@@ -133,6 +135,52 @@ full-suite order.
 Fitting is the slow part, so it is behind a cached artifact: `report`,
 `select` and `validate` read `suite.irt` and are instant (`validate` refits, so
 it is not — see below).
+
+---
+
+## Known limitations
+
+Measured, not suspected. The first five come from a 336-fit study against
+synthetic ground truth,
+[`docs/validation.md` §4](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md#4-how-many-respondents),
+where the responses really were generated by a 2PL — the case most favourable
+to this tool. On real suites expect each to be no better.
+
+- **`report`'s refusal fires too readily, and on the wrong quantity.** It leads
+  with *cannot rank these items yet* when more than half the items are
+  `insufficient-data`. That share has a floor set by the suite as well as the
+  data, so at 15–25 models the report refuses on fits whose 50-item anchor sets
+  rank new models within 0.02 of the best possible set. Read the refusal as
+  "most items are unreadable", not as "the anchor set is unusable" — `validate`
+  answers that question directly.
+- **Choosing items with IRT is no better than a spreadsheet, on complete
+  data.** A set picked by classical item-rest correlation ranked fresh models
+  as well as `select`'s did, within a few thousandths either way, at 15 to 100
+  models with one response per model; with three prompt variants per model
+  `select` led by up to 0.01. What the fit adds is the flags — `insufficient-data`,
+  `inverted`, ceiling and floor — and keeping backwards items out of the set.
+- **Below six real models the intervals are not 95% intervals.** They covered
+  the true discrimination 40–72% of the time at three to five models with one
+  response per model. The report only adds a caution below five.
+- **`inverted` finds about half of mis-keyed items.** The fitter's
+  parameterisation makes it hard for an item's slope to cross zero, so many
+  backwards items stay positive and look merely weak — and with more models,
+  some become usable or `dead`. Treat an `inverted` count as a floor, not a
+  census. It is not yet fixed.
+- **At low respondent counts, much of an anchor set can be padding.** When
+  fewer items are readable than you ask for, `select` fills the set from
+  `insufficient-data` items and says how many. This is on purpose: a short set
+  ranked models worse than a random draw of the full size, and the padded one
+  beat a random draw by 0.04 Spearman on average. It was level with classical
+  item-rest correlation, not better, and a set that is mostly padding is only
+  as good as the point estimates behind it.
+- **Small anchor sets reproduce the ranking much less well on real data** than
+  on synthetic data. See [Does it actually work?](#does-it-actually-work).
+- **`--adaptive` is declared and not implemented**, and exits saying so.
+- **`pip install irtcheck` on Linux pulls PyPI's default `torch`**, which
+  bundles CUDA and is a download of several gigabytes. If you do not have a GPU,
+  install the CPU wheel first:
+  `pip install torch --index-url https://download.pytorch.org/whl/cpu`.
 
 ---
 
@@ -350,7 +398,7 @@ reliably gets wrong subtracts from exactly the signal you wanted.
 
 **At five to fifteen respondents, most low-information items land in
 `insufficient-data` and `dead` is rare.** In the quickstart above, 20
-respondents gave 429 insufficient-data and 1 dead out of 600 items. That is not
+respondents gave 378 insufficient-data and 0 dead out of 600 items. That is not
 a bad run — it is the only honest reading of twenty responses per item.
 
 `dead` is rare for a reason worth stating exactly, because the obvious guess is
@@ -490,12 +538,22 @@ good test?" in the abstract and "does this test measure the models I actually
 have?", and the two answers diverge whenever a suite was built for a generation
 of models that has since been outgrown.
 
-Items flagged `insufficient-data`, `ceiling` or `floor`, and items with no
-responses in this fit, are not eligible. `dead` items stay eligible and are
-simply never worth picking — their information is near zero by definition —
+Items flagged `insufficient-data`, `inverted`, `ceiling` or `floor`, and items
+with no responses in this fit, are not eligible. `dead` items stay eligible and
+are simply never worth picking — their information is near zero by definition —
 which is a property that falls out rather than one that had to be special-cased.
-Asking for more items than are eligible gives you what there is and says so
-rather than padding the set with items the report said it could not read.
+
+**Asking for more items than are eligible pads the set, and says so.** The
+readable items come first; the rest are filled, by the same objective, from
+`insufficient-data` items — never from `inverted`, ceiling, floor or unanswered
+items, and never from an item whose fitted slope is negative. The summary line
+reads `50 items (12 confident, 38 padded)`, and the JSON carries `"padded": 38`,
+counted from the end of `item_ids`. Early versions returned the short set
+instead, on the argument that padding would undo the refusal; measured, a short
+set ranked models worse than a random draw of the full size.
+[`docs/validation.md` §4](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md#a-short-anchor-set-is-worse-than-a-random-one)
+has the numbers. If you want only the confident items, take the first
+`count - padded` ids.
 
 Output is a fixed set, because a regression suite needs the same items every
 run or scores are not comparable over time. `--adaptive` would select a
@@ -557,11 +615,11 @@ seed 5:
 | 50  | 50    | +0.988   | +0.956      |
 | 100 | 100   | +1.000   | +1.000      |
 | 200 | 200   | +1.000   | +1.000      |
-| 400 | 252   | +1.000   | +1.000      |
+| 400 | 400   | +1.000   | +1.000      |
 
-(n=400 returns 252 items because only that many were eligible in the held-out
-fits — the rest are `insufficient-data`, `ceiling` or `floor`. `select` reports
-the shortfall rather than padding the set.)
+(From n=200 up, the held-out fits had as few as 123 confident items; `select`
+fills the rest from `insufficient-data` items and says how many. Unpadded, those
+rows score the same +1.000 on 123 items.)
 
 **This is synthetic data, and the items really do come from a 2PL because we
 drew them from one.** Real eval items do not. So this table is a correctness
@@ -583,11 +641,11 @@ spanning 0.29 to 0.78 full-suite accuracy — `irtcheck fit` takes 13 s:
 
 |                     | 12 real models × 3,551 items | synthetic, 20 respondents × 600 items |
 | ------------------- | ---------------------------- | ------------------------------------- |
-| usable for ranking  | 568 (16.0%)                  | 130 (21.7%)                           |
-| `insufficient-data` | 2,980 (83.9%)                | 429 (71.5%)                           |
+| usable for ranking  | 568 (16.0%)                  | 190 (31.7%)                           |
+| `insufficient-data` | 2,980 (83.9%)                | 378 (63.0%)                           |
 | `dead`              | 0                            | 0                                     |
 | `inverted`          | 3 (0.08%)                    | 1 (0.2%)                              |
-| `ceiling` / `floor` | 3.8% / 4.3%                  | 3.8% / 2.8%                           |
+| `ceiling` / `floor` | 3.8% / 4.3%                  | 3.7% / 2.7%                           |
 
 **The small-N behaviour this README describes is not an artefact of how
 `synth.py` draws parameters** — it is what real model responses do too, with the
@@ -646,18 +704,17 @@ This is the least flattering measurement here and the one most worth reading.
 
 | n   | items | Spearman | Kendall tau | synthetic Spearman |
 | --- | ----- | -------- | ----------- | ------------------ |
-| 25  | 25    | +0.691   | +0.523      | +0.921             |
-| 50  | 50    | +0.755   | +0.545      | +0.964             |
-| 100 | 100   | +0.687   | +0.504      | +0.976             |
-| 200 | 200   | +0.855   | +0.657      | +0.964             |
-| 400 | 204\* | +0.890   | +0.748      | +0.964             |
+| 25  | 25    | +0.691   | +0.523      | +0.994             |
+| 50  | 50    | +0.755   | +0.545      | +0.988             |
+| 100 | 100   | +0.671   | +0.485      | +1.000             |
+| 200 | 200   | +0.782   | +0.585      | +1.000             |
+| 400 | 400   | +0.881   | +0.758      | +1.000             |
 
 **On this real matrix a 25-item anchor set does not reproduce the ranking.** It
-takes a couple of hundred items to reach +0.89, which is useful; twenty-five do
-not, and the curve is not even monotone in n. The asterisk is worth a second
-look: n=400 could only supply **204** eligible items, and those 204 scored
-+0.890 — better than the 400 items the previous, too-narrow intervals made
-eligible. Half the anchor set, a better ranking. Four candidate causes — a unidimensional 2PL fitted
+takes a few hundred items to reach +0.88, which is useful; twenty-five do not,
+and the curve is not even monotone in n. At n=400, two of the twelve held-out
+fits ran out of confident items and were padded; the accuracy ranking came out
+identical to the unpadded one. Four candidate causes — a unidimensional 2PL fitted
 across maths, law and commonsense, twelve respondents being thin for a rank
 correlation, mislabelled responses, and multiple-choice guessing a 2PL has no
 parameter for — are laid out in [`docs/validation.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md) **as
