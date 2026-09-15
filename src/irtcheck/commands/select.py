@@ -78,16 +78,29 @@ def _summarise(err: Console, fit: IrtFit, anchor: AnchorSet) -> None:
     header = f"{models} model{'s' if models != 1 else ''}"
     if fit.has_pseudo_respondents:
         header += f" ({fit.n_respondents} respondents, key {'+'.join(fit.respondent_key)})"
-    err.print(
-        f"[bold]{anchor.n_selected}[/bold] of {anchor.n_usable} usable items "
-        f"({fit.n_items} total) · {header}"
-    )
+    if anchor.n_padded:
+        chosen = (
+            f"[bold]{anchor.n_selected}[/bold] items ({anchor.n_confident} confident, "
+            f"{anchor.n_padded} padded)"
+        )
+    else:
+        chosen = f"[bold]{anchor.n_selected}[/bold] of {anchor.n_usable} usable items"
+    err.print(f"{chosen} ({fit.n_items} total) · {header}")
+    if anchor.n_padded:
+        err.print(
+            f"[yellow]Only {anchor.n_confident} item(s) could be read with confidence; "
+            f"{anchor.n_padded} were added[/yellow] from items flagged insufficient-data, "
+            "by the same objective, and they come last in the set. Measured against "
+            "synthetic ground truth, a short set ranks models worse than a random draw of "
+            "the full size, and a padded one ranks them better (docs/validation.md §4). "
+            "Padding never takes an item that is inverted, at ceiling or floor, or whose "
+            "fitted slope points backwards. More respondents shrink the padded share."
+        )
     if anchor.shortfall:
         err.print(
             f"[yellow]Asked for {anchor.requested}, selected {anchor.n_selected}.[/yellow] "
-            f"Only {anchor.n_usable} of {fit.n_items} items are eligible; the rest are "
-            "flagged insufficient-data, inverted, ceiling or floor. Padding the set with items we "
-            "said we could not read would be worse than a short one."
+            f"Only {anchor.n_selected} of {fit.n_items} items are eligible even with padding; "
+            "the rest are inverted, at ceiling or floor, unanswered, or lean backwards."
         )
     err.print(
         f"Mean ability standard error over these models: {anchor.mean_theta_se:.3f} "
