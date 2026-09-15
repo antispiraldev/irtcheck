@@ -1,0 +1,20 @@
+== fitted ability spread vs true (800 items, 1 variant, seed 0)
+   3 models: fitted sd 0.06  true sd 0.32
+   4 models: fitted sd 0.21  true sd 0.28
+   5 models: fitted sd 0.16  true sd 0.38
+   6 models: fitted sd 0.79  true sd 0.37
+   8 models: fitted sd 0.83  true sd 0.56
+  15 models: fitted sd 0.97  true sd 0.90
+== planted mis-keyed items at 40 and 100 models, excluding ceiling/floor
+fitted a < 0: median |logit p| 0.37  (n=252)
+fitted a > 0: median |logit p| 1.52  (n=227)
+== where a's interval misses truth (800 items, six seeds, ceiling/floor excluded)
+  30 models x 1 variants: truth above interval 0.049, below 0.012
+ 100 models x 1 variants: truth above interval 0.072, below 0.016
+  30 models x 3 variants: truth above interval 0.066, below 0.015
+ 100 models x 3 variants: truth above interval 0.163, below 0.017
+== coverage of a at 2,000 vs 8,000 epochs (800 items, seed 0, ceiling/floor excluded)
+  30 models x 1 variants,  2000 epochs: coverage 0.927, ELBO gain over last 10% +21.7
+  30 models x 1 variants,  8000 epochs: coverage 0.892, ELBO gain over last 10% -7.3
+ 100 models x 3 variants,  2000 epochs: coverage 0.853, ELBO gain over last 10% +56.1
+ 100 models x 3 variants,  8000 epochs: coverage 0.743, ELBO gain over last 10% +52.3

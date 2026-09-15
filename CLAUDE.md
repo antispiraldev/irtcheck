@@ -202,6 +202,23 @@ branches that were each green alone. It asserts:
   at either twelve or 95 respondents, because the items that used to land there
   are `inverted` instead. That is the honest answer, and saying so is the
   product.
+- **`inverted` finds about half of mis-keyed items, and that is a known fitter
+  bug, not a threshold.** Measured in `docs/validation.md` §4: `a` and `b`
+  enter as `a(theta - b)`, so an item crossing from positive to negative `a` at
+  fixed accuracy sends `b` through infinity, and the prior on `b` walls it off.
+  Items near 50% accuracy cross; the rest stay positive and, as respondents
+  are added, become *usable* or `dead` — 68 of the 69 `dead` flags in the
+  sweep were planted mis-keyed items. Do not read an `inverted` count as a
+  census, and do not "fix" it by loosening the flag.
+- **The report's refusal reads the `insufficient-data` share, and §4 found
+  that is the wrong quantity.** The share has a floor set by the suite, so it
+  refuses at 15-25 models on anchor sets within 0.02 of the oracle, while the
+  failure that does track respondent count — `select` returning fewer items
+  than asked — is met with a warning that padding "would be worse than a short
+  one", and measured, the short set ranks worse than the padded set *and* than
+  a random one.
+  `REFUSAL_SHARE` and `THIN_MODEL_COUNT` are unchanged pending that decision;
+  do not retune the constants as if the shape were right.
 - **`derives_from` is load-bearing.** Every respondent records the real model
   it came from. Leave-one-model-out must hold out *every pseudo-respondent
   derived from a model*, not one row: drop one and that model's other prompt
