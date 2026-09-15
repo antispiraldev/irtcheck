@@ -4,7 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "irtcheck"
-version = "0.1.0"
+# One source for the version: `src/irtcheck/__init__.py`, which the CLI prints
+# and every artifact records. See [tool.hatch.version] below.
+dynamic = ["version"]
 description = "Find the items in your eval suite that actually measure something."
 readme = "README.md"
 license = { text = "MIT" }
@@ -49,6 +51,13 @@ Homepage = "https://github.com/antispiraldev/irtcheck"
 
 [project.scripts]
 irtcheck = "irtcheck.cli:app"
+
+# The version used to live here *and* in `__init__.py`. The release workflow's
+# tag check read this file and `irtcheck --version` read the other, so a bump
+# that touched only one would pass the gate and ship a wheel that reports a
+# different version than its filename. Hatch reads it from the module instead.
+[tool.hatch.version]
+path = "src/irtcheck/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/irtcheck"]
