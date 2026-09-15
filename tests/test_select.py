@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import typer
 
-from irtcheck.artifact import FLAG_CEILING, FLAG_FLOOR, FLAG_INSUFFICIENT_DATA
+from irtcheck.artifact import FLAG_CEILING, FLAG_FLOOR, FLAG_INSUFFICIENT_DATA, FLAG_INVERTED
 from irtcheck.commands import select as command
 from irtcheck.select import (
     DEFAULT_OBJECTIVE,
@@ -19,6 +19,7 @@ from irtcheck.select import (
     SelectError,
     ability_distribution,
     item_information,
+    padding_items,
     select_anchor,
     select_item_ids,
 )
@@ -140,13 +141,78 @@ def test_dead_items_are_eligible_and_never_worth_picking():
     assert not dead.intersection(select_anchor(fit, 100).item_indices)
 
 
-def test_a_short_anchor_set_is_reported_rather_than_padded():
+def test_a_short_anchor_set_is_padded_with_the_confident_items_first():
+    """Measured in docs/validation.md §4: a short set ranks worse than a random one."""
     fit, _ = synthetic_fit(n_models=6, n_items=60, seed=10)
-    usable = len(fit.usable_items())
-    anchor = select_anchor(fit, usable + 25)
-    assert anchor.n_selected == usable
-    assert anchor.shortfall == 25
-    assert len(set(anchor.item_ids)) == usable  # no duplicates padding it out
+    usable = set(fit.usable_items())
+    anchor = select_anchor(fit, len(usable) + 10)
+
+    assert anchor.n_confident == len(usable)
+    assert anchor.n_padded == 10
+    assert anchor.shortfall == 0
+    assert set(anchor.item_indices[: len(usable)]) == usable
+    padded = anchor.item_indices[len(usable) :]
+    assert set(padded) <= set(padding_items(fit, exclude=list(usable)))
+    assert len(set(anchor.item_ids)) == anchor.n_selected  # no duplicates padding it out
+
+
+def test_padding_never_reaches_for_a_backwards_item():
+    """Information goes as a^2, so without the rules these are the items it would take.
+
+    Each excluded item is made the most informative in the suite; the rule, not
+    the ranking, has to keep it out.
+    """
+    fit, _ = synthetic_fit(n_models=6, n_items=60, seed=10)
+    theta = float(np.mean(fit.theta.mean))
+    spare = [i for i in range(fit.n_items) if FLAG_INSUFFICIENT_DATA in fit.flags[i]]
+    leaning_backwards, inverted, ceiling, unanswered = spare[:4]
+    for i in (leaning_backwards, inverted, ceiling, unanswered):
+        fit.a.mean[i], fit.b.mean[i] = 3.0, theta
+    fit.a.mean[leaning_backwards] = -3.0
+    fit.flags[inverted] = [FLAG_INVERTED]
+    fit.flags[ceiling] = [FLAG_CEILING]
+    fit.n_resp[unanswered] = 0
+
+    anchor = select_anchor(fit, fit.n_items)
+    assert anchor.n_padded > 0
+    assert not {leaning_backwards, inverted, ceiling, unanswered} & set(anchor.item_indices)
+
+
+def test_padding_that_runs_out_still_reports_the_shortfall():
+    fit, _ = synthetic_fit(n_models=6, n_items=60, seed=10)
+    available = len(fit.usable_items()) + len(padding_items(fit, exclude=fit.usable_items()))
+    anchor = select_anchor(fit, fit.n_items + 25)
+    assert anchor.n_selected == available
+    assert anchor.shortfall == fit.n_items + 25 - available
+
+
+def test_explicit_candidates_are_the_whole_pool_and_are_not_padded():
+    fit, _ = synthetic_fit(n_models=6, n_items=60, seed=10)
+    usable = fit.usable_items()
+    anchor = select_anchor(fit, len(usable) + 10, candidates=usable)
+    assert anchor.n_selected == len(usable)
+    assert anchor.n_padded == 0
+    assert anchor.shortfall == 10
+
+
+def test_min_variance_padding_continues_from_the_confident_set():
+    """An item's min-variance gain depends on what the set already covers."""
+    fit, _ = synthetic_fit(n_models=6, n_items=60, seed=10)
+    usable = fit.usable_items()
+    n = len(usable) + 10
+    anchor = select_anchor(fit, n, objective=OBJECTIVE_MIN_VARIANCE)
+    confident = select_anchor(fit, len(usable), objective=OBJECTIVE_MIN_VARIANCE)
+    assert anchor.item_indices[: len(usable)] == confident.item_indices
+    assert anchor.mean_theta_se < confident.mean_theta_se
+    # Recompute each padded item's gain against the precision of everything before it.
+    theta, weights = ability_distribution(fit)
+    info = item_information(fit.a.mean, fit.b.mean, theta)
+    precision = 1.0 + info[anchor.item_indices[: len(usable)]].sum(axis=0)
+    padded = zip(anchor.item_indices[len(usable) :], anchor.gains[len(usable) :], strict=True)
+    for index, gain in padded:
+        expected = (weights / precision).sum() - (weights / (precision + info[index])).sum()
+        assert gain == pytest.approx(expected)
+        precision = precision + info[index]
 
 
 def test_gains_decay_so_a_user_can_see_where_n_stops_buying_anything():
@@ -167,10 +233,19 @@ def test_bad_sizes_and_objectives_raise():
         select_anchor(fit, 5, candidates=[0, 9999])
 
 
-def test_no_eligible_items_points_at_respondent_count():
-    """The refusal path: with too few respondents nothing can be read at all."""
+def test_nothing_confident_is_padded_entirely_rather_than_refused():
+    """Five of six fits at 200 items and eight models used to return nothing here."""
     fit, _ = synthetic_fit(n_models=4, n_items=30, seed=13)
     fit.flags = [[FLAG_INSUFFICIENT_DATA] for _ in fit.item_ids]
+    anchor = select_anchor(fit, 5)
+    assert anchor.n_selected == anchor.n_padded == 5
+    assert anchor.n_usable == 0
+
+
+def test_no_eligible_items_points_at_respondent_count():
+    """The refusal path: nothing is confident and nothing can pad."""
+    fit, _ = synthetic_fit(n_models=4, n_items=30, seed=13)
+    fit.flags = [[FLAG_CEILING] for _ in fit.item_ids]
     with pytest.raises(SelectError, match="respondent-key"):
         select_anchor(fit, 5)
 
@@ -294,6 +369,7 @@ def test_command_writes_json_and_summarises_to_stderr(tmp_path: Path, capsys):
     payload = json.loads(out.read_text())
     assert len(payload["item_ids"]) == 20
     assert payload["requested"] == 20
+    assert payload["padded"] == 0
     assert payload["objective"] == DEFAULT_OBJECTIVE
     assert payload["source"] == str(path)
 
@@ -324,7 +400,20 @@ def test_command_refuses_adaptive_rather_than_quietly_doing_something_else(
     assert "comparable" in message
 
 
-def test_command_reports_a_short_set(tmp_path: Path, capsys):
+def test_command_says_how_much_of_the_set_is_padding(tmp_path: Path, capsys):
+    path = _artifact(tmp_path)
+    fit = command.IrtFit.load(path)
+    count = len(fit.usable_items()) + 5
+    out = tmp_path / "anchor.json"
+    command.run(artifact=path, count=count, output=out, adaptive=False)
+    message = " ".join(plain(capsys.readouterr().err).split())  # rich wraps lines
+    assert f"{count} items ({count - 5} confident, 5 padded)" in message
+    assert "5 were added" in message
+    assert "worse than a random" in message
+    assert json.loads(out.read_text())["padded"] == 5
+
+
+def test_command_reports_a_set_that_is_still_short(tmp_path: Path, capsys):
     path = _artifact(tmp_path)
     command.run(artifact=path, count=10_000, output=None, adaptive=False)
     assert "Asked for" in plain(capsys.readouterr().err)
@@ -350,7 +439,7 @@ def test_command_exits_cleanly_on_a_bad_artifact(tmp_path: Path, capsys):
 
 def test_command_surfaces_a_selection_refusal(tmp_path: Path, capsys):
     fit, _ = synthetic_fit(n_models=4, n_items=30, seed=18)
-    fit.flags = [[FLAG_INSUFFICIENT_DATA] for _ in fit.item_ids]
+    fit.flags = [[FLAG_CEILING] for _ in fit.item_ids]
     path = fit.save(tmp_path / "thin.irt")
     with pytest.raises(typer.Exit) as exc:
         command.run(artifact=path, count=5, output=None, adaptive=False)

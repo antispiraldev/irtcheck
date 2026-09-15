@@ -20,9 +20,8 @@ The short version, good news and bad news together:
   synthetic data could not have — including a scoring artefact that makes four
   strong models score below chance.
 - **On that real matrix the anchor-set claim is much weaker.**
-  Leave-one-model-out gives Spearman **+0.691 at n=25** and **+0.890 at
-  n=400** — which could only supply 204 eligible items — against +0.921 and
-  +0.976 synthetic. Twenty-five items do not reproduce the ranking here. This
+  Leave-one-model-out gives Spearman **+0.691 at n=25** and **+0.881 at
+  n=400**, against +0.994 and +1.000 synthetic. Twenty-five items do not reproduce the ranking here. This
   is the most important number on the page and the reason the synthetic table
   is labelled as carefully as it is.
 - **The fitter is cross-checked against `mirt` and `py-irt`, and the check
@@ -79,10 +78,11 @@ The fit: **9.7 s** on CPU (32-core x86-64, torch CPU wheel), 12,000 responses,
 | 50  | 50    | +0.988   | +0.956      | +0.976           | +0.911      |
 | 100 | 100   | +1.000   | +1.000      | +1.000           | +1.000      |
 | 200 | 200   | +1.000   | +1.000      | +1.000           | +1.000      |
-| 400 | 252\* | +1.000   | +1.000      | +1.000           | +1.000      |
+| 400 | 400   | +1.000   | +1.000      | +1.000           | +1.000      |
 
-\* fewer than 400 items were eligible: the rest are flagged
-`insufficient-data`, `ceiling` or `floor` in the held-out fits.
+At n=200 and n=400 every held-out fit had fewer confident items than asked for
+— as few as 123 — and `select` padded the rest from `insufficient-data` items
+(§4). Without padding those two rows score the same +1.000 on 123 items.
 
 n=50 scoring marginally below n=25 is not a bug and not worth reading into.
 With ten models a single swapped adjacent pair moves Spearman by about 0.012,
@@ -108,13 +108,14 @@ small-N picture:
 
 ```
       respondents  10 real models → 20 respondents (2.0 per model)
-            items  600 items  (306 usable for ranking and selection)
-             dead  3 (0.5%)
-insufficient-data  256 (42.7%)
+            items  600 items  (190 usable for ranking and selection)
+             dead  0 (0.0%)
+         inverted  1 (0.2%)
+insufficient-data  378 (63.0%)
   ceiling / floor  ceiling 22 (3.7%)   floor 16 (2.7%)
 ```
 
-43% of items unrankable at 20 respondents, and almost nothing reaching `dead`.
+63% of items unrankable at 20 respondents, and nothing reaching `dead`.
 That is the expected result, for the reason the README gives: `dead` needs an
 interval narrow enough to sit wholly below 0.35.
 
@@ -201,12 +202,12 @@ CPU). The report header:
 
 | | 12 models × 3,551 items | synthetic, 20 respondents × 600 items |
 | --- | --- | --- |
-| usable for ranking  | 568 (16.0%)   | 130 (21.7%) |
-| `insufficient-data` | 2,980 (83.9%) | 429 (71.5%)   |
+| usable for ranking  | 568 (16.0%)   | 190 (31.7%) |
+| `insufficient-data` | 2,980 (83.9%) | 378 (63.0%)   |
 | `dead`              | 0             | 0             |
 | `inverted`          | 3 (0.08%)     | 1 (0.2%)      |
-| `ceiling`           | 3.8%          | 3.8%          |
-| `floor`             | 4.3%          | 2.8%          |
+| `ceiling`           | 3.8%          | 3.7%          |
+| `floor`             | 4.3%          | 2.7%          |
 
 Both columns were re-measured after §2f moved the reported item interval off
 the variational marginals; the scripts that rebuild the matrix are in
@@ -220,9 +221,9 @@ two flags read observed rates rather than intervals, so they should not have
 moved, and they did not.
 
 **The real matrix still behaves like the synthetic one at comparable respondent
-count.** Around a fifth of items usable, `dead` well under one per cent,
+count.** A sixth to a third of items usable, `dead` well under one per cent,
 single-digit ceiling and floor rates. The real matrix is somewhat harsher —
-83.9% unrankable against 71.5% — which is what twelve real models should look
+83.9% unrankable against 63.0% — which is what twelve real models should look
 like next to twenty pseudo-respondents drawn from a 2PL. `report` now leads
 with a refusal rather than a caution, because 83.9% is well past the 50%
 threshold.
@@ -367,25 +368,32 @@ model:
 | n   | items | Spearman | Kendall tau | Spearman (theta) | tau (theta) |
 | --- | ----- | -------- | ----------- | ---------------- | ----------- |
 | 25  | 25    | +0.691   | +0.523      | +0.797           | +0.606      |
-| 50  | 50    | +0.755   | +0.545      | +0.846           | +0.667      |
-| 100 | 100   | +0.687   | +0.504      | +0.776           | +0.576      |
-| 200 | 200   | +0.855   | +0.657      | +0.790           | +0.606      |
-| 400 | 204\* | +0.890   | +0.748      | +0.811           | +0.636      |
+| 50  | 50    | +0.755   | +0.545      | +0.839           | +0.636      |
+| 100 | 100   | +0.671   | +0.485      | +0.776           | +0.576      |
+| 200 | 200   | +0.782   | +0.585      | +0.790           | +0.606      |
+| 400 | 400   | +0.881   | +0.758      | +0.874           | +0.727      |
 
-Against the synthetic matrix's +0.921 at n=25 and +0.976 at n=100. **On this
+Re-measured when `select` started padding short sets (§4). The n=50 to n=400
+rows differ from the table as first published here — +0.855 at n=200 was
++0.782 on the re-run, a row padding does not touch — and the cause was not
+bisected; this table is what the code produces now.
+
+Against the synthetic matrix's +0.994 at n=25 and +1.000 at n=100. **On this
 real matrix, a 25-item anchor set does not reproduce the ranking**, and it takes
-a few hundred items to reach +0.89 — respectable, but nothing like the
+a few hundred items to reach +0.88 — respectable, but nothing like the
 synthetic result, and not the "1% of the items, 2% error" figure that
 circulates about IRT-selected benchmark subsets.
 
-**The asterisk is the most interesting thing in the table.** n=400 could only
-supply **204** items, because after §2f the pool of items eligible for
-selection is 568 rather than 1,664 — and those 204 items score **+0.890**,
-above the +0.867 that 400 items managed before. Half the anchor set, a better
-ranking. The items the wider intervals removed from eligibility were not
-carrying signal the old anchor sets were exploiting; they were adding noise the
-old selection could not see, which is the case for the interval change stated
-in terms a user of `select` would care about.
+**Padding changed one row, and only in two of the twelve holdouts.** At n=400
+one held-out fit had 204 confident items and another 384; the other ten had
+400 or more. Filled to 400, the accuracy columns are identical to the unpadded
+run — +0.881 and +0.758 on either — and the `theta` columns rise from +0.811
+and +0.636 to +0.874 and +0.727. Earlier, before §2f widened the intervals,
+1,664 items were eligible rather than 568, and 400 of them scored +0.867 where
+the 204 confident ones later scored +0.890: the items the wider intervals made
+ineligible were adding noise the old selection could not see. Padding does not
+undo that, because it only reaches past the confident pool when that pool has
+run out.
 
 Three things about this table are worth stating plainly rather than explaining
 away.
@@ -396,23 +404,22 @@ to have been the right caveat. Anyone quoting +0.994 as evidence that small
 anchor sets work on eval suites would have been wrong, and the gap between the
 two tables is the reason the README labels the synthetic one twice.
 
-**It is not monotone in n.** n=100 (+0.629) scores below n=50 (+0.775). With
+**It is not monotone in n.** n=100 (+0.671) scores below n=50 (+0.755). With
 twelve models a single adjacent swap moves Spearman by only about 0.007, so a
-0.15 drop is roughly twenty rank-units of churn and not one unlucky pair — the
+0.08 drop is roughly twelve rank-units of churn and not one unlucky pair — the
 selected sets at those two sizes genuinely differ in how well they order these
 models. Read the trend, not any row.
 
-**The `theta` columns beat the accuracy columns at small n, and stop doing so
-at large n.** At n=25 to 100 the gap is 0.09 to 0.11 Spearman in `theta`'s
-favour; at n=200 and 400 the accuracy columns win by 0.07 and 0.08.
-`validate`'s own documentation says those two diverge when an anchor set skews
-hard or easy, so the gap at small n is the tool reporting that a 25-item set is
-mis-centred for these respondents, and re-estimating ability with the item
-parameters held fixed corrects for it. The crossover is new: before §2f the
-`theta` columns led at *every* size, by 0.06 to 0.18. Now that the eligible
-pool excludes the items whose discrimination was never established, a
-200-item set is well enough centred that plain accuracy — which is what a user
-would actually do with an anchor set — is the better estimator.
+**The `theta` columns beat the accuracy columns at small n, and the gap closes
+at large n.** At n=25 to 100 it is 0.08 to 0.11 Spearman in `theta`'s favour;
+at n=200 and 400 the two are within 0.01 of each other. `validate`'s own
+documentation says those two diverge when an anchor set skews hard or easy, so
+the gap at small n is the tool reporting that a 25-item set is mis-centred for
+these respondents, and re-estimating ability with the item parameters held
+fixed corrects for it. Before §2f the `theta` columns led at *every* size, by
+0.06 to 0.18; with the eligible pool restricted to items whose discrimination
+was established, a 200-item set is centred well enough that plain accuracy —
+which is what a user would actually do with an anchor set — does as well.
 
 #### Why, as far as we can tell
 
@@ -829,9 +836,13 @@ the tool needs 50 readable items, not most of them.
 
 ### A short anchor set is worse than a random one
 
-The failure that does track respondent count is handled by a warning that
-says the opposite of what was measured. When fewer items are eligible than
-were asked for, `select` returns what it has and prints: *"Padding the set with
+**`select` now pads, and this subsection is why.** What follows is the
+measurement as first made, against the behaviour 0.1.0 was tagged with; the
+next subsection says what padding takes and what it scores.
+
+The failure that does track respondent count was handled by a warning that
+said the opposite of what was measured. When fewer items were eligible than
+were asked for, `select` returned what it had and printed: *"Padding the set with
 items we said we could not read would be worse than a short one."* At 200
 items and eight models, five of six fits returned nothing and the sixth
 returned one item, scoring **0.337**; at ten models the sets averaged 12.8
@@ -839,8 +850,32 @@ items and scored **0.737**. The padded set — the same selection filled from
 the ungated pool — scored **0.953** and **0.948**, and fifty items drawn at
 random scored 0.918. At 800 items and eight models: 4.3 items, **0.594**,
 against 0.948 padded. A short set is worse than the padded one *and* worse
-than chance, and the sentence telling the user otherwise is the one piece of
-the tool's output this study directly contradicts.
+than chance, and the sentence telling the user otherwise was the one piece of
+the tool's output this study directly contradicted.
+
+### What padding takes
+
+That "padded" set was the ungated selection, and the ungated selection is the
+one that put 565 mis-keyed items into anchor sets. So what to pad *with* was
+measured separately, on every sweep fit where the confident pool could not
+fill a set of 25 or 50 — 198 cases —
+[`studies/min_respondents/padding.py`](../studies/min_respondents/padding.py):
+
+| fill the rest from                                      | mis-keyed items | vs shipped, thousandths |
+| ------------------------------------------------------- | --------------- | ----------------------- |
+| nothing (the short set, 66 cases that returned any)     | 2               | −147 ± 23               |
+| every item not at ceiling or floor (`ungated`)          | 176             | −10.5 ± 1.1             |
+| the same, less `inverted` items                         | 132             | −9.3 ± 1.1              |
+| **the same, less any item with a negative fitted `a`**  | **26**          | —                       |
+
+The last row is what `select` does. The rule that matters is the one the
+`inverted` flag does not cover: an `insufficient-data` item leaning backwards
+is a mis-keyed item the interval has not convicted, it has a large `|a|`, and
+selection reaches for it. Against the baselines on the same fits, the shipped
+padding beats a random draw of the full size by **+41.3 ± 1.7** thousandths —
+below the mean random draw in 7 of 198 cases — and is level with classical
+item-rest correlation, **−1.2 ± 1.4**. That is the sense in which padding is
+fine: a padded set is a good set, not a better one than a spreadsheet makes.
 
 ### When the gate can fill the set, it earns its place
 
@@ -885,7 +920,7 @@ this study does not exercise. What it does say is that **the anchor-set
 ranking, on complete data, is not where the IRT is paying for itself**, and
 that below the point where the gate can fill a set, a classical ranking beats
 random by +14 to +39 thousandths at every model count measured — including
-three — while the tool returns nothing.
+three — while the tool, before it padded, returned nothing.
 
 ### Below six models the intervals are wrong, not just wide
 
@@ -956,7 +991,8 @@ not a 2PL, so that is a reason to look rather than a measurement.
 
 ### What this changes, and what it does not yet
 
-Nothing in the package changes in the pull request that adds this section.
+Nothing in the package changed in the pull request that added this section;
+the `select` bullet below has since been acted on.
 The evidence says the refusal rule has the wrong *shape*, not the wrong
 constant, and changing what the report refuses on is a design decision rather
 than a tuning. What the measurements support:
@@ -966,10 +1002,10 @@ than a tuning. What the measurements support:
   top; a fit that can should not be refused because the suite has many
   unreadable items.
 - **Below six real models, refuse the intervals.** They cover 40–72% there.
-- **`select`'s shortfall warning is wrong and should change.** Either refuse
-  outright, or say that a short set ranks worse than a random set of the
-  requested size — and item-rest correlation is a measured-better fallback
-  that needs no fit.
+- **`select`'s shortfall warning is wrong and should change.** *Done:* it
+  pads, from a pool measured above, and says how many items are padding.
+  Item-rest correlation remains a measured-equal alternative that needs no
+  fit.
 - **The sign barrier is a fitter bug and needs its own fix.** Slope-intercept
   parameterisation (`a·theta + d`) has no wall at `a = 0`; so would starting
   each `a` at the sign of its item-rest correlation, at least for items the

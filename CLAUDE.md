@@ -212,13 +212,19 @@ branches that were each green alone. It asserts:
   census, and do not "fix" it by loosening the flag.
 - **The report's refusal reads the `insufficient-data` share, and §4 found
   that is the wrong quantity.** The share has a floor set by the suite, so it
-  refuses at 15-25 models on anchor sets within 0.02 of the oracle, while the
-  failure that does track respondent count — `select` returning fewer items
-  than asked — is met with a warning that padding "would be worse than a short
-  one", and measured, the short set ranks worse than the padded set *and* than
-  a random one.
+  refuses at 15-25 models on anchor sets within 0.02 of the oracle.
   `REFUSAL_SHARE` and `THIN_MODEL_COUNT` are unchanged pending that decision;
   do not retune the constants as if the shape were right.
+- **`select` pads a short anchor set, and padding has its own gate.** A set
+  shorter than asked for ranked models worse than a random draw of the full
+  size, so `select_anchor` fills it from `padding_items()` after the confident
+  items — and `padding_items()` excludes a *negative fitted slope*, not just
+  the `inverted` flag. That rule is the measured part: without it padding put
+  132 mis-keyed items into 198 short sets, with it 26
+  (`studies/min_respondents/padding.py`). The sign barrier above is why an
+  `insufficient-data` item can lean backwards without being flagged. Padding
+  applies only to the default pool; `candidates=` is taken as the whole pool,
+  which is how a study asks for the unpadded set.
 - **`derives_from` is load-bearing.** Every respondent records the real model
   it came from. Leave-one-model-out must hold out *every pseudo-respondent
   derived from a model*, not one row: drop one and that model's other prompt

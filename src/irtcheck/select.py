@@ -58,6 +58,27 @@ real model gets equal total weight, matching the rule that a report header
 counts models and not respondents. This one is not a deviation from anything —
 the spec says "the observed ability distribution", and twelve temperature
 samples of one model are not twelve observations of the distribution.
+
+**A short anchor set is padded, and that reverses an earlier decision on
+measured grounds.** When fewer items are eligible than were asked for, the set
+used to come back short, on the argument that filling it with items the report
+said it could not read would undo the refusal. Measured against synthetic
+ground truth (docs/validation.md §4), the short set was worse than the padded
+one and worse than a random draw: at 800 items and eight models, 4.3 items
+ranked 2,000 fresh models at Spearman 0.594 where a random fifty managed 0.918.
+A rank correlation over four items is mostly ties; `insufficient-data` means
+"we cannot tell how sharply this item separates models", not "this item
+separates nobody", and most such items separate somebody.
+
+So the confident items come first and the rest of the set is filled, by the
+same objective, from items whose interval merely spans zero — never from
+`inverted`, `ceiling`, `floor` or unanswered items, and never from an item whose
+fitted slope points backwards. That last rule is the one that matters: filling
+from every non-ceiling/floor item put 176 mis-keyed items into 198 short sets,
+excluding `inverted` alone still put in 132, and excluding a negative point
+estimate as well put in 26 and ranked better by 9 thousandths (±1). The
+`insufficient-data` gate still earns its place wherever it can fill the set;
+padding only decides what happens when it cannot.
 """
 
 from __future__ import annotations
@@ -69,7 +90,7 @@ from typing import Any
 import numpy as np
 from scipy.special import expit
 
-from irtcheck.artifact import IrtFit
+from irtcheck.artifact import FLAG_CEILING, FLAG_FLOOR, FLAG_INVERTED, IrtFit
 
 # theta ~ N(0, 1) is the identification the fit records, so an anchor set that
 # tells us nothing still leaves precision 1. It also keeps the objective finite
@@ -142,10 +163,18 @@ class AnchorSet:
     requested: int
     n_usable: int  # candidates after flags *and* after dropping zero-response items
     n_items: int
+    # How many of `item_ids`, counted from the end, came from the padding pool
+    # rather than the confident one. The confident items always come first.
+    n_padded: int = 0
 
     @property
     def n_selected(self) -> int:
         return len(self.item_ids)
+
+    @property
+    def n_confident(self) -> int:
+        """Items chosen from the confident pool, before any padding."""
+        return self.n_selected - self.n_padded
 
     @property
     def shortfall(self) -> int:
@@ -166,6 +195,7 @@ class AnchorSet:
             "requested": self.requested,
             "objective": self.objective,
             "n_usable_items": self.n_usable,
+            "padded": self.n_padded,
             "n_items": self.n_items,
             "mean_theta_se": self.mean_theta_se,
             "gains": [float(g) for g in self.gains],
@@ -201,9 +231,11 @@ def select_anchor(
     model answered an item leaves that item with zero responses in the held-out
     fit that then chooses the anchor set.
 
-    Fewer than `n` items come back when fewer than `n` are eligible. That is
-    reported, not padded: filling an anchor set with items we said we could not
-    read would undo the refusal that makes the rest of the tool honest.
+    **When fewer than `n` are eligible, the set is padded** from
+    `padding_items()`, and the confident items come first. See the module
+    docstring for the measurement that decided it. Padding applies only to the
+    default pool: a caller passing `candidates` has named the whole pool. Fewer
+    than `n` items still come back when both pools together run out.
     """
     if n <= 0:
         raise SelectError(f"anchor set size must be positive, got {n}")
@@ -218,8 +250,9 @@ def select_anchor(
     answered = [i for i in pool if fit.n_resp[i] > 0]
     unanswered = len(pool) - len(answered)
     pool = answered
+    padding = padding_items(fit, exclude=pool) if candidates is None else []
 
-    if not pool:
+    if not pool and not padding:
         if unanswered:
             raise SelectError(
                 f"none of the {unanswered} candidate item(s) have a single response in "
@@ -229,23 +262,92 @@ def select_anchor(
             )
         raise SelectError(
             "no items are eligible for selection — every item is flagged "
-            "insufficient-data, inverted, ceiling or floor. With this many respondents most "
-            "items cannot be read at all; add respondents (temperature samples or "
-            "prompt variants via --respondent-key) before selecting an anchor set."
+            "inverted, ceiling or floor, discriminates backwards, or has no responses. "
+            "With this many respondents most items cannot be read at all; add respondents "
+            "(temperature samples or prompt variants via --respondent-key) before "
+            "selecting an anchor set."
         )
 
     theta, weights = ability_distribution(fit)
+    precision = np.full(theta.shape, THETA_PRIOR_PRECISION, dtype=float)
+    chosen, gains, precision, test_info = _greedy(
+        fit, pool, n, objective, weights, theta, precision
+    )
+    n_confident = len(chosen)
+    if len(chosen) < n and padding:
+        extra, extra_gains, precision, extra_info = _greedy(
+            fit, padding, n - len(chosen), objective, weights, theta, precision
+        )
+        chosen += extra
+        gains += extra_gains
+        test_info = test_info + extra_info
+
+    return AnchorSet(
+        item_ids=[fit.item_ids[i] for i in chosen],
+        item_indices=chosen,
+        gains=gains,
+        theta=[float(t) for t in theta],
+        theta_weights=[float(w) for w in weights],
+        information=[float(x) for x in test_info],
+        theta_se=[float(x) for x in np.sqrt(1.0 / precision)],
+        objective=objective,
+        requested=n,
+        n_usable=len(pool),
+        n_items=fit.n_items,
+        n_padded=len(chosen) - n_confident,
+    )
+
+
+def padding_items(fit: IrtFit, *, exclude: Sequence[int] = ()) -> list[int]:
+    """Items a short anchor set may be filled from, in index order.
+
+    Everything that is answered, not `ceiling` or `floor` (nothing to tell), not
+    `inverted` (confidently backwards), and whose fitted slope is positive — an
+    `insufficient-data` item leaning backwards is a mis-keyed item the interval
+    could not yet convict, and information goes as `a^2`, so without this rule
+    it is exactly the item selection would reach for.
+    """
+    skip = {FLAG_CEILING, FLAG_FLOOR, FLAG_INVERTED}
+    excluded = set(exclude)
+    a = np.asarray(fit.a.mean, dtype=float)
+    return [
+        i
+        for i, flags in enumerate(fit.flags)
+        if i not in excluded
+        and fit.n_resp[i] > 0
+        and a[i] > 0
+        and not skip.intersection(flags)
+    ]
+
+
+def _greedy(
+    fit: IrtFit,
+    pool: list[int],
+    n: int,
+    objective: str,
+    weights: np.ndarray,
+    theta: np.ndarray,
+    precision: np.ndarray,
+) -> tuple[list[int], list[float], np.ndarray, np.ndarray]:
+    """Greedy forward selection of up to `n` items from `pool`.
+
+    `precision` is carried in and out so padding continues the confident set
+    rather than starting over — which matters for `min-variance`, where an
+    item's gain depends on what the set already covers. Returns item indices
+    into the fit, their gains, the updated precision, and the chosen items'
+    test information.
+    """
+    if not pool:
+        return [], [], precision, np.zeros_like(theta)
     a = np.asarray(fit.a.mean, dtype=float)[pool]
     b = np.asarray(fit.b.mean, dtype=float)[pool]
     info = item_information(a, b, theta)  # (pool, thetas)
 
-    take = min(n, len(pool))
     chosen: list[int] = []
     gains: list[float] = []
-    precision = np.full(theta.shape, THETA_PRIOR_PRECISION, dtype=float)
     available = np.ones(len(pool), dtype=bool)
 
-    for _ in range(take):
+    for _ in range(min(n, len(pool))):
         if objective == OBJECTIVE_MAX_INFORMATION:
             # Linear in the set, so the loop reduces to a weighted sort and the
             # gain vector never changes. Recomputing it each pass costs one
@@ -257,7 +359,7 @@ def select_anchor(
             gain = current.sum() - (weights / (precision + info)).sum(axis=1)
         gain = np.where(available, gain, -np.inf)
         pick = int(np.argmax(gain))  # ties break toward the lower item index
-        if not np.isfinite(gain[pick]):  # pragma: no cover - `take` bounds the loop
+        if not np.isfinite(gain[pick]):  # pragma: no cover - the range bounds the loop
             break
         available[pick] = False
         chosen.append(pick)
@@ -265,19 +367,7 @@ def select_anchor(
         precision = precision + info[pick]
 
     test_info = info[chosen].sum(axis=0) if chosen else np.zeros_like(theta)
-    return AnchorSet(
-        item_ids=[fit.item_ids[pool[i]] for i in chosen],
-        item_indices=[pool[i] for i in chosen],
-        gains=gains,
-        theta=[float(t) for t in theta],
-        theta_weights=[float(w) for w in weights],
-        information=[float(x) for x in test_info],
-        theta_se=[float(x) for x in np.sqrt(1.0 / precision)],
-        objective=objective,
-        requested=n,
-        n_usable=len(pool),
-        n_items=fit.n_items,
-    )
+    return [pool[i] for i in chosen], gains, precision, test_info
 
 
 def select_item_ids(fit: IrtFit, n: int) -> list[str]:
