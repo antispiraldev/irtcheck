@@ -1,4 +1,4 @@
-"""Leave-one-model-out: does a small anchor set reproduce the full-suite ranking?
+"""Leave-one-model-out: does an anchor set place a model it never saw?
 
 This is the headline number. Selecting items using every model and then
 reporting that the subset reproduces the ranking of those same models is
@@ -6,37 +6,45 @@ circular and worthless — the anchor set was chosen knowing the answer. So:
 
   1. hold model k out,
   2. fit the 2PL on what remains,
-  3. select an anchor set of size n from *that* fit,
-  4. score model k on the anchor items only,
-  5. compare its rank to its full-suite ground-truth rank,
-  6. repeat for every model; report Spearman and Kendall tau against n.
+  3. select an anchor set S_k of size n from *that* fit,
+  4. score **every** model on S_k by plain accuracy,
+  5. find where k lands among them, and how far that is from where it lands on
+     the full suite,
+  6. repeat for every model; report the mean distance against n, beside the
+     same distance for random item sets of the same size.
+
+**Every model is scored on the same set, and that is a correction.** Until
+0.1.0 was tagged, step 4 scored only model k, each on its own S_k, and the
+headline was a rank correlation across those scores. Different holdouts choose
+different sets — on the twelve-model HELM matrix, the twelve 100-item sets
+shared 11 items and their mean accuracy ranged 0.49-0.77 — so that correlation
+mixed "does the set rank models" with "how hard did this holdout's set happen
+to be". It flattered stratified selection (+0.991 at n=400) and punished plain
+selection for reasons unrelated to ranking. A user scores every model on one
+fixed set; this is that. The re-estimated-ability columns existed to correct
+for sets differing in difficulty between holdouts, and went with the problem.
+
+**The random baseline is not optional, and it is the most important column.**
+Measured on HELM Lite (docs/validation.md §5), anchor sets chosen by the 2PL
+placed held-out models *worse* than random sets of the same size from 100
+items up, at twelve models and at ninety-five — and item-rest correlation did
+no better. A number with nothing to compare it to would have hidden that. The
+draws are seeded, so the same artifact and settings give the same output.
 
 **Holding out a model means holding out every pseudo-respondent derived from
 it.** With --respondent-key model_id,prompt_variant one real model is several
 respondents; drop one row and that model's other variants leak its answers into
 the fit that chooses the anchor set. The anchor set is then picked with
-knowledge of the model it is about to be tested on and the correlation comes
-out inflated, with nothing anywhere to catch it. `ResponseMatrix.drop_model()`
-uses `derives_from` to do this correctly and is the only way respondents are
-removed here — never a hand-rolled filter.
-
-Both scores, per D.2, and the plain one is the headline:
-
-  `anchor_accuracy`  proportion correct over the anchor items. This is what a
-                     user actually does with an anchor set once they have it,
-                     so it is the number that has to hold up.
-  `anchor_theta`     ability re-estimated from the anchor responses with the
-                     held-out fit's item parameters held fixed (MAP under the
-                     N(0, 1) prior). Reported alongside, because the two
-                     diverge exactly when an anchor set skews hard or easy, and
-                     that divergence is worth seeing.
+knowledge of the model it is about to be tested on and the result comes out
+inflated, with nothing anywhere to catch it. `ResponseMatrix.drop_model()` uses
+`derives_from` to do this correctly and is the only way respondents are removed
+here — never a hand-rolled filter.
 
 The fitter is injected. `leave_one_model_out` takes `fit_fn` and `select_fn`,
 so the loop is developed and tested against a fake fitter returning known
-parameters, and the wave-2 wiring commit connects the real one by changing
-`default_fit_fn` and nothing else. Nothing in this module may import torch: it
-has to run on a machine that has never installed it (CLAUDE.md, the lazy torch
-boundary), and the fitter reaches it through `fit_fn`.
+parameters. Nothing in this module may import torch: it has to run on a machine
+that has never installed it (CLAUDE.md, the lazy torch boundary), and the
+fitter reaches it through `fit_fn`.
 """
 
 from __future__ import annotations
@@ -46,8 +54,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-from scipy.special import expit
-from scipy.stats import kendalltau, spearmanr
+from scipy.stats import kendalltau, rankdata, spearmanr
 
 from irtcheck.artifact import IrtFit
 from irtcheck.matrix import ResponseMatrix
@@ -63,8 +70,9 @@ DEFAULT_SIZES: tuple[int, ...] = (25, 50, 100, 200, 400)
 # Rank correlation over two points is either +1 or -1 and means nothing.
 MIN_MODELS = 3
 
-# theta ~ N(0, 1), the identification the artifact records.
-THETA_PRIOR_SD = 1.0
+# Random sets per (holdout, size). Scoring a set is a column slice, so this is
+# cheap next to one fit; 200 puts the share-of-draws column within a few points.
+RANDOM_DRAWS = 200
 
 FitFn = Callable[[ResponseMatrix], IrtFit]
 SelectFn = Callable[[IrtFit, int], Sequence[str]]
@@ -74,133 +82,75 @@ class ValidateError(ValueError):
     pass
 
 
-# -- scoring one held-out model ----------------------------------------------
-
-
-def map_theta(
-    a: np.ndarray, b: np.ndarray, y: np.ndarray, *, prior_sd: float = THETA_PRIOR_SD
-) -> float:
-    """MAP ability for one respondent, item parameters held fixed.
-
-    The log posterior is strictly concave in theta whatever the sign of a — its
-    second derivative is -sum(a^2 P (1-P)) - 1/sd^2 — so the score function is
-    strictly decreasing and bisection cannot fail to converge or land on a local
-    optimum. Newton would be faster and would need a guard for the all-right and
-    all-wrong cases that Newton alone diverges on; this is called a few hundred
-    times per run, so robustness is worth more than the iterations.
-    """
-    if y.size == 0:
-        return float("nan")
-
-    def score(theta: float) -> float:
-        p = expit(a * (theta - b))
-        return float(np.sum(a * (y - p)) - theta / prior_sd**2)
-
-    lo, hi = -12.0, 12.0
-    if score(lo) <= 0.0:
-        return lo
-    if score(hi) >= 0.0:
-        return hi
-    for _ in range(60):
-        mid = 0.5 * (lo + hi)
-        if score(mid) > 0.0:
-            lo = mid
-        else:
-            hi = mid
-    return 0.5 * (lo + hi)
-
-
-@dataclass(slots=True)
-class ModelScore:
-    """One held-out model at one anchor size."""
-
-    model_id: str
-    truth: float  # full-suite accuracy over ALL items — the ground truth rank
-    anchor_accuracy: float  # headline
-    anchor_theta: float  # secondary, item parameters held fixed
-    n_respondents: int
-    n_anchor_responses: int
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "model_id": self.model_id,
-            "truth": self.truth,
-            "anchor_accuracy": self.anchor_accuracy,
-            "anchor_theta": self.anchor_theta,
-            "n_respondents": self.n_respondents,
-            "n_anchor_responses": self.n_anchor_responses,
-        }
+# -- scoring every model on one set -------------------------------------------
 
 
 def _model_respondents(matrix: ResponseMatrix, model_id: str) -> list[int]:
     return [i for i, src in enumerate(matrix.derives_from) if src == model_id]
 
 
-def _item_parameters(fit: IrtFit, item_ids: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
-    """a and b for `item_ids`, looked up by id.
+class AccuracyTable:
+    """Every model's plain accuracy on any item set, from one dense pass.
 
-    By id and not by position: the fit came from a matrix with one model
-    dropped, and nothing promises it ordered or even kept the same items.
+    Accuracy is computed per respondent and then averaged over a model's
+    respondents — the aggregation `full_suite_accuracy` uses — so a model
+    sampled at ten temperatures does not weigh more in one number than in the
+    other. A respondent that answered none of the set is left out of its
+    model's mean; a model with no such respondents scores NaN.
     """
-    index = {item: i for i, item in enumerate(fit.item_ids)}
-    missing = [i for i in item_ids if i not in index]
-    if missing:
-        raise ValidateError(
-            f"the anchor set names {len(missing)} item(s) the fit does not know, "
-            f"e.g. {missing[:3]}. select_fn must return ids from the fit it was given."
-        )
-    a = np.asarray(fit.a.mean, dtype=float)
-    b = np.asarray(fit.b.mean, dtype=float)
-    picks = [index[i] for i in item_ids]
-    return a[picks], b[picks]
+
+    def __init__(self, matrix: ResponseMatrix) -> None:
+        self.model_ids = sorted(set(matrix.derives_from))
+        self.column = {item: c for c, item in enumerate(matrix.item_ids)}
+        shape = (matrix.n_respondents, matrix.n_items)
+        self._correct = np.zeros(shape, dtype=np.float32)
+        self._answered = np.zeros(shape, dtype=np.float32)
+        # add.at, not assignment: a matrix may carry a respondent answering an
+        # item twice, and respondent_accuracy() counts both.
+        np.add.at(self._correct, (matrix.rows, matrix.cols), matrix.obs)
+        np.add.at(self._answered, (matrix.rows, matrix.cols), 1.0)
+        owner = {m: k for k, m in enumerate(self.model_ids)}
+        self._owner = np.array([owner[src] for src in matrix.derives_from], dtype=np.int64)
+        self._per_model = np.bincount(self._owner, minlength=len(self.model_ids))
+
+    def columns(self, item_ids: Sequence[str]) -> np.ndarray:
+        return np.array([self.column[i] for i in dict.fromkeys(item_ids)], dtype=np.int64)
+
+    def accuracy(self, cols: np.ndarray) -> np.ndarray:
+        """Per-model accuracy on `cols`, in `model_ids` order."""
+        answered = self._answered[:, cols].sum(axis=1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            per_respondent = self._correct[:, cols].sum(axis=1) / answered
+        ok = answered > 0
+        models = len(self._per_model)
+        total = np.bincount(self._owner[ok], weights=per_respondent[ok], minlength=models)
+        count = np.bincount(self._owner[ok], minlength=models)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(count > 0, total / np.maximum(count, 1), np.nan)
 
 
-def score_held_out(
-    matrix: ResponseMatrix,
-    model_id: str,
-    item_ids: Sequence[str],
-    fit: IrtFit,
-) -> tuple[float, float, int]:
-    """Score a held-out model on the anchor items, both ways.
+def placement(scores: np.ndarray, truth: np.ndarray, k: int) -> tuple[float, float]:
+    """(where model k lands on `scores`, where it lands on `truth`), 1 = best.
 
-    Returns (accuracy, theta, responses used). Both scores are computed per
-    pseudo-respondent and then averaged over the model's respondents, so they
-    aggregate the same way the ground truth does — a model is not allowed to
-    weigh more in one number than in the other because it was sampled more
-    often.
+    Both among the same models: those with a finite value in each, so a model
+    that answered none of the set drops out of both rankings rather than
+    shifting one. Ties share the average place. NaN if k itself has no score.
     """
-    wanted = list(dict.fromkeys(item_ids))
-    a_all, b_all = _item_parameters(fit, wanted)
-    column = {item: c for c, item in enumerate(matrix.item_ids)}
-    anchor_cols = np.array([column[i] for i in wanted if i in column], dtype=np.int64)
-    # Anchor position, so item parameters stay aligned with the columns kept.
-    keep = np.array([k for k, i in enumerate(wanted) if i in column], dtype=np.int64)
-    a_all, b_all = a_all[keep], b_all[keep]
-    position = {int(c): k for k, c in enumerate(anchor_cols)}
-
-    accuracies: list[float] = []
-    thetas: list[float] = []
-    used = 0
-    for r in _model_respondents(matrix, model_id):
-        mask = (matrix.rows == r) & np.isin(matrix.cols, anchor_cols)
-        y = matrix.obs[mask].astype(float)
-        if y.size == 0:
-            continue
-        used += int(y.size)
-        at = np.array([position[int(c)] for c in matrix.cols[mask]], dtype=np.int64)
-        accuracies.append(float(y.mean()))
-        thetas.append(map_theta(a_all[at], b_all[at], y))
-
-    if not accuracies:
-        return float("nan"), float("nan"), 0
-    return float(np.mean(accuracies)), float(np.mean(thetas)), used
+    ok = np.isfinite(scores) & np.isfinite(truth)
+    if not ok[k]:
+        return float("nan"), float("nan")
+    at = int(np.flatnonzero(ok).tolist().index(k))
+    return (
+        float(rankdata(-scores[ok], method="average")[at]),
+        float(rankdata(-truth[ok], method="average")[at]),
+    )
 
 
 def full_suite_accuracy(matrix: ResponseMatrix) -> dict[str, float]:
     """Ground truth: each real model's aggregate accuracy over every item.
 
     `respondent_accuracy()` per respondent, then averaged over the respondents
-    of a model — the same aggregation the anchor score uses, so the comparison
+    of a model — the same aggregation `AccuracyTable` uses, so the comparison
     is between two ways of *choosing items* and not between two ways of
     averaging.
     """
@@ -230,41 +180,97 @@ def _correlate(x: Sequence[float], y: Sequence[float]) -> tuple[float, float]:
 
 
 @dataclass(slots=True)
+class ModelScore:
+    """One held-out model at one anchor size."""
+
+    model_id: str
+    truth: float  # full-suite accuracy over ALL items
+    true_place: float  # 1 = best, among the models scored on this set
+    anchor_accuracy: float
+    anchor_place: float
+    n_items: int  # the anchor set's size for this holdout
+    n_respondents: int
+    random_error: float  # mean |place error| over random sets of n_items
+
+    @property
+    def error(self) -> float:
+        return abs(self.anchor_place - self.true_place)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "model_id": self.model_id,
+            "truth": self.truth,
+            "true_place": self.true_place,
+            "anchor_accuracy": self.anchor_accuracy,
+            "anchor_place": self.anchor_place,
+            "place_error": self.error,
+            "random_place_error": self.random_error,
+            "n_items": self.n_items,
+            "n_respondents": self.n_respondents,
+        }
+
+
+@dataclass(slots=True)
 class SizeResult:
     """The whole leave-one-model-out loop, at one anchor size."""
 
     size: int
     models: list[ModelScore]
-    n_selected: list[int]  # items actually selected per holdout; short means short
-    spearman: float = float("nan")  # headline: plain accuracy over the anchor items
+    random_errors: list[float]  # mean place error of each random draw, over holdouts
+    random_spearman: float = float("nan")  # mean over draws
+    spearman: float = float("nan")  # held-out places against full-suite places
     kendall: float = float("nan")
-    spearman_theta: float = float("nan")  # secondary: re-estimated ability
-    kendall_theta: float = float("nan")
 
     def __post_init__(self) -> None:
-        truth = [m.truth for m in self.models]
-        self.spearman, self.kendall = _correlate(truth, [m.anchor_accuracy for m in self.models])
-        self.spearman_theta, self.kendall_theta = _correlate(
-            truth, [m.anchor_theta for m in self.models]
+        self.spearman, self.kendall = _correlate(
+            [m.true_place for m in self.models], [m.anchor_place for m in self.models]
         )
 
     @property
+    def n_selected(self) -> list[int]:
+        return [m.n_items for m in self.models]
+
+    @property
     def min_selected(self) -> int:
-        return min(self.n_selected) if self.n_selected else 0
+        return min(self.n_selected) if self.models else 0
 
     @property
     def short(self) -> bool:
         """True when some holdout could not supply a full anchor set."""
         return self.min_selected < self.size
 
+    @property
+    def mean_error(self) -> float:
+        """Headline: mean places between where a held-out model lands and where it should."""
+        errors = [m.error for m in self.models if np.isfinite(m.error)]
+        return float(np.mean(errors)) if errors else float("nan")
+
+    @property
+    def random_error(self) -> float:
+        return float(np.mean(self.random_errors)) if self.random_errors else float("nan")
+
+    @property
+    def beats_random(self) -> float:
+        """Share of random draws whose mean error is larger than the anchor set's.
+
+        Ties count half, so a size where every set places every model exactly
+        reads 50% rather than 0% or 100%.
+        """
+        if not self.random_errors or not np.isfinite(self.mean_error):
+            return float("nan")
+        draws = np.asarray(self.random_errors)
+        return float(np.mean(draws > self.mean_error) + 0.5 * np.mean(draws == self.mean_error))
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "size": self.size,
             "items_selected": self.min_selected,
+            "place_error": self.mean_error,
+            "random_place_error": self.random_error,
+            "beats_random": self.beats_random,
             "spearman": self.spearman,
             "kendall": self.kendall,
-            "spearman_theta": self.spearman_theta,
-            "kendall_theta": self.kendall_theta,
+            "random_spearman": self.random_spearman,
             "models": [m.to_dict() for m in self.models],
         }
 
@@ -272,14 +278,12 @@ class SizeResult:
 @dataclass(slots=True)
 class ValidationReport:
     results: list[SizeResult]
-    model_ids: list[str]
+    model_ids: list[str]  # the models held out
+    n_models: int  # every real model, each scored on every set
     n_respondents: int
     n_items: int
+    random_draws: int = RANDOM_DRAWS
     respondent_key: list[str] = field(default_factory=list)
-
-    @property
-    def n_models(self) -> int:
-        return len(self.model_ids)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -287,8 +291,9 @@ class ValidationReport:
             "n_respondents": self.n_respondents,
             "n_items": self.n_items,
             "respondent_key": list(self.respondent_key),
-            "models": list(self.model_ids),
-            "headline": "kendall",  # plain accuracy over the anchor items (D.2)
+            "held_out": list(self.model_ids),
+            "random_draws": self.random_draws,
+            "headline": "place_error",  # against random_place_error, same size
             "sizes": [r.to_dict() for r in self.results],
         }
 
@@ -317,60 +322,129 @@ def leave_one_model_out(
     sizes: Sequence[int] = DEFAULT_SIZES,
     select_fn: SelectFn = select_item_ids,
     on_model: Callable[[str, int, int], None] | None = None,
+    holdouts: Sequence[str] | None = None,
+    random_draws: int = RANDOM_DRAWS,
+    seed: int = 0,
 ) -> ValidationReport:
-    """Run the holdout loop and report rank correlation as a function of n.
+    """Run the holdout loop and report placement error as a function of n.
 
     `fit_fn` takes a matrix and returns an IrtFit; `select_fn` takes a fit and a
-    size and returns item ids. Both are injected so the loop is testable against
-    a fitter that returns known parameters — the whole of this module is
-    exercised before a real fitter exists, and the wave-2 wiring commit swaps
-    one callable.
+    size and returns item ids from that fit. Both are injected so the loop is
+    testable against a fitter that returns known parameters, and so a study can
+    score another selector through exactly the same loop.
 
-    `select_fn` is called once per (holdout, size). Greedy selection is nested,
-    so a caller with an expensive selector can pass one that caches per fit;
-    with the default selector the fits dominate by orders of magnitude.
+    `holdouts` restricts which models are held out — every model is still
+    scored on every set. With ninety-five models, holding out all of them is
+    ninety-five fits; a spread of two dozen answers the same question.
+
+    Random sets are drawn from the items the held-out fit has responses for,
+    which is what a user without model k could have drawn from, at the size the
+    anchor set actually came out, so a short set is compared with a short one.
     """
     wanted = parse_sizes(sizes)
     model_ids = sorted(set(matrix.derives_from))
     if len(model_ids) < MIN_MODELS:
         raise ValidateError(
             f"leave-one-model-out needs at least {MIN_MODELS} real models, this matrix has "
-            f"{len(model_ids)} ({', '.join(model_ids)}). Rank correlation over two models is "
-            "either +1 or -1 and says nothing. Note that pseudo-respondents do not help here: "
-            "they raise respondent count for fitting, not the number of models to rank."
+            f"{len(model_ids)} ({', '.join(model_ids)}). Placing one model among two says "
+            "nothing. Note that pseudo-respondents do not help here: they raise respondent "
+            "count for fitting, not the number of models to rank."
         )
+    held = model_ids if holdouts is None else list(dict.fromkeys(holdouts))
+    unknown = [h for h in held if h not in set(model_ids)]
+    if unknown:
+        raise ValidateError(f"cannot hold out models the matrix does not have: {unknown[:3]}")
+    if random_draws < 0:
+        raise ValidateError(f"random_draws must be zero or more, got {random_draws}")
 
-    truth = full_suite_accuracy(matrix)
+    table = AccuracyTable(matrix)
+    truth_of = full_suite_accuracy(matrix)
+    truth = np.array([truth_of[m] for m in table.model_ids], dtype=float)
+    index = {m: k for k, m in enumerate(table.model_ids)}
+    rng = np.random.default_rng(seed)
+
     scores: dict[int, list[ModelScore]] = {n: [] for n in wanted}
-    selected: dict[int, list[int]] = {n: [] for n in wanted}
+    # draw_errors[n][d] accumulates draw d's place error over holdouts.
+    draw_errors = {n: np.zeros(random_draws) for n in wanted}
+    draw_counts = {n: np.zeros(random_draws) for n in wanted}
+    draw_places = {n: [[] for _ in range(random_draws)] for n in wanted}
 
-    for position, model_id in enumerate(model_ids):
+    for position, model_id in enumerate(held):
         if on_model is not None:
-            on_model(model_id, position, len(model_ids))
+            on_model(model_id, position, len(held))
         # The one correct way to hold a model out: every pseudo-respondent
         # derived from it goes too. Never filter respondent_ids by hand.
-        held_out = matrix.drop_model(model_id)
-        fit = fit_fn(held_out)
+        fit = fit_fn(matrix.drop_model(model_id))
+        known = set(fit.item_ids)
+        answered = [
+            table.column[i]
+            for i, count in zip(fit.item_ids, fit.n_resp, strict=True)
+            if count > 0 and i in table.column
+        ]
+        k = index[model_id]
         for n in wanted:
             item_ids = list(select_fn(fit, n))
-            accuracy, theta, used = score_held_out(matrix, model_id, item_ids, fit)
-            selected[n].append(len(item_ids))
+            missing = [i for i in item_ids if i not in known]
+            if missing:
+                raise ValidateError(
+                    f"the anchor set names {len(missing)} item(s) the fit does not know, "
+                    f"e.g. {missing[:3]}. select_fn must return ids from the fit it was given."
+                )
+            cols = table.columns(item_ids)
+            scored = table.accuracy(cols)
+            anchor_place, true_place = placement(scored, truth, k)
+
+            errors = []
+            for d in range(random_draws):
+                size = min(len(cols), len(answered))
+                pick = rng.choice(answered, size=size, replace=False) if size else cols[:0]
+                place, true = placement(table.accuracy(np.asarray(pick)), truth, k)
+                error = abs(place - true)
+                errors.append(error)
+                if np.isfinite(error):
+                    draw_errors[n][d] += error
+                    draw_counts[n][d] += 1
+                    draw_places[n][d].append((true, place))
+            finite = [e for e in errors if np.isfinite(e)]
             scores[n].append(
                 ModelScore(
                     model_id=model_id,
-                    truth=truth[model_id],
-                    anchor_accuracy=accuracy,
-                    anchor_theta=theta,
+                    truth=truth_of[model_id],
+                    true_place=true_place,
+                    anchor_accuracy=float(scored[k]),
+                    anchor_place=anchor_place,
+                    n_items=len(cols),
                     n_respondents=len(_model_respondents(matrix, model_id)),
-                    n_anchor_responses=used,
+                    random_error=float(np.mean(finite)) if finite else float("nan"),
                 )
             )
 
+    results = []
+    for n in wanted:
+        with np.errstate(invalid="ignore", divide="ignore"):
+            per_draw = draw_errors[n] / draw_counts[n]
+        rhos = [
+            _correlate([t for t, _ in places], [p for _, p in places])[0]
+            for places in draw_places[n]
+            if len(places) >= MIN_MODELS
+        ]
+        finite_rhos = [r for r in rhos if np.isfinite(r)]
+        results.append(
+            SizeResult(
+                size=n,
+                models=scores[n],
+                random_errors=[float(e) for e in per_draw if np.isfinite(e)],
+                random_spearman=float(np.mean(finite_rhos)) if finite_rhos else float("nan"),
+            )
+        )
+
     return ValidationReport(
-        results=[SizeResult(size=n, models=scores[n], n_selected=selected[n]) for n in wanted],
-        model_ids=model_ids,
+        results=results,
+        model_ids=list(held),
+        n_models=len(model_ids),
         n_respondents=matrix.n_respondents,
         n_items=matrix.n_items,
+        random_draws=random_draws,
         respondent_key=list(matrix.respondent_key),
     )
 

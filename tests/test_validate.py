@@ -29,12 +29,12 @@ from irtcheck.select import select_item_ids
 from irtcheck.synth import SyntheticTruth, synthetic_fit, synthetic_matrix
 from irtcheck.validate import (
     DEFAULT_SIZES,
+    AccuracyTable,
     ValidateError,
     full_suite_accuracy,
     leave_one_model_out,
-    map_theta,
     parse_sizes,
-    score_held_out,
+    placement,
 )
 
 Z95 = 1.959963985
@@ -107,34 +107,6 @@ def truth_fit_fn(truth: SyntheticTruth, *, sd: float = 0.005, log: list | None =
         return fit
 
     return fit_fn
-
-
-# -- ability re-estimation ---------------------------------------------------
-
-
-def test_map_theta_recovers_a_known_ability():
-    rng = np.random.default_rng(0)
-    a = rng.lognormal(np.log(1.2), 0.3, size=600)
-    b = rng.normal(0.0, 1.0, size=600)
-    for true_theta in (-1.5, 0.0, 0.8):
-        p = 1.0 / (1.0 + np.exp(-a * (true_theta - b)))
-        y = (rng.random(p.shape) < p).astype(float)
-        assert map_theta(a, b, y) == pytest.approx(true_theta, abs=0.25)
-
-
-def test_map_theta_is_pulled_to_the_prior_when_the_data_cannot_bound_it():
-    """All-correct has no finite MLE; the N(0, 1) prior is what keeps it finite."""
-    a = np.array([1.0, 1.0, 1.0])
-    b = np.array([0.0, 0.0, 0.0])
-    all_right = map_theta(a, b, np.ones(3))
-    all_wrong = map_theta(a, b, np.zeros(3))
-    assert 0.0 < all_right < 4.0
-    assert -4.0 < all_wrong < 0.0
-    assert all_right == pytest.approx(-all_wrong)
-
-
-def test_map_theta_with_no_responses_is_nan():
-    assert np.isnan(map_theta(np.array([]), np.array([]), np.array([])))
 
 
 # -- ground truth ------------------------------------------------------------
@@ -212,45 +184,155 @@ def test_one_fit_per_holdout_not_one_per_size():
     assert len(seen) == 4
 
 
-# -- scoring both ways -------------------------------------------------------
+# -- scoring every model on one set ------------------------------------------
 
 
-def test_score_held_out_uses_only_the_anchor_items():
-    matrix, truth = synthetic_matrix(n_models=4, n_items=50, seed=10)
-    fit = truth_fit_fn(truth)(matrix)
-    items = matrix.item_ids[:12]
-    accuracy, theta, used = score_held_out(matrix, "model-02", items, fit)
+def test_accuracy_table_matches_full_suite_accuracy_on_every_item():
+    matrix, _ = synthetic_matrix(n_models=5, n_items=60, variants_per_model=3, missing=0.2, seed=10)
+    table = AccuracyTable(matrix)
+    every = np.arange(matrix.n_items)
+    truth = full_suite_accuracy(matrix)
+    assert table.accuracy(every) == pytest.approx([truth[m] for m in table.model_ids])
+
+
+def test_accuracy_table_uses_only_the_set():
+    matrix, _ = synthetic_matrix(n_models=4, n_items=50, seed=10)
+    table = AccuracyTable(matrix)
+    cols = table.columns(matrix.item_ids[:12])
     row = matrix.respondent_ids.index("model-02")
     mask = (matrix.rows == row) & np.isin(matrix.cols, np.arange(12))
-    assert used == 12
-    assert accuracy == pytest.approx(float(matrix.obs[mask].mean()))
-    assert np.isfinite(theta)
+    assert table.accuracy(cols)[table.model_ids.index("model-02")] == pytest.approx(
+        float(matrix.obs[mask].mean())
+    )
 
 
-def test_score_held_out_rejects_items_the_fit_does_not_know():
-    matrix, truth = synthetic_matrix(n_models=4, n_items=30, seed=11)
-    fit = truth_fit_fn(truth)(matrix)
-    with pytest.raises(ValidateError, match="does not know"):
-        score_held_out(matrix, "model-00", ["item_00000", "not_an_item"], fit)
+def test_a_model_that_answered_none_of_the_set_scores_nan_and_drops_out_of_placement():
+    scores = np.array([0.9, np.nan, 0.5, 0.7])
+    truth = np.array([0.8, 0.95, 0.4, 0.6])
+    assert all(np.isnan(placement(scores, truth, 1)))
+    # model 2 is last of the three that have a score, on both rankings
+    assert placement(scores, truth, 2) == (3.0, 3.0)
 
 
-def test_both_scores_are_reported_and_can_disagree():
-    """D.2: headline plain accuracy, report the re-estimated ability beside it.
+def test_placement_is_one_for_the_best_and_shares_ties():
+    truth = np.array([0.9, 0.8, 0.7])
+    assert placement(np.array([0.2, 0.6, 0.6]), truth, 0) == (3.0, 1.0)
+    assert placement(np.array([0.2, 0.6, 0.6]), truth, 1) == (1.5, 2.0)
 
-    A hard anchor set drives accuracy down for everyone; ability re-estimated
-    with the item parameters held fixed corrects for exactly that, which is why
-    both are worth having in front of a user.
-    """
+
+def test_every_model_is_scored_on_the_held_out_models_set():
+    """The correction: a set that is hard for everyone moves nobody's place."""
     matrix, truth = synthetic_matrix(n_models=6, n_items=120, seed=12)
-    fit = truth_fit_fn(truth)(matrix)
-    hard = [
-        item
-        for item, b in sorted(zip(matrix.item_ids, truth.b, strict=True), key=lambda kv: -kv[1])
-    ][:30]
-    accuracy, theta, _ = score_held_out(matrix, "model-00", hard, fit)
-    full = full_suite_accuracy(matrix)["model-00"]
-    assert accuracy < full  # the anchor set skews hard
-    assert np.isfinite(theta)
+    hardest = [i for _, i in sorted(zip(truth.b, matrix.item_ids, strict=True))][-40:]
+
+    report = leave_one_model_out(
+        matrix, fit_fn=truth_fit_fn(truth), sizes=(40,), select_fn=lambda fit, n: hardest
+    )
+    [result] = report.results
+    for score in result.models:
+        assert score.anchor_accuracy < score.truth  # the set skews hard for the held-out model
+    # ...and yet places are compared among models all scored on that same set.
+    assert result.mean_error <= 1.0
+
+
+def test_select_fn_must_return_items_from_the_fit():
+    matrix, truth = synthetic_matrix(n_models=4, n_items=30, seed=11)
+    with pytest.raises(ValidateError, match="does not know"):
+        leave_one_model_out(
+            matrix,
+            fit_fn=truth_fit_fn(truth),
+            sizes=(2,),
+            select_fn=lambda fit, n: ["item_00000", "not_an_item"],
+            random_draws=0,
+        )
+
+
+# -- the random baseline -----------------------------------------------------
+
+
+def test_the_random_baseline_is_seeded():
+    matrix, truth = synthetic_matrix(n_models=6, n_items=120, seed=18)
+    run = lambda seed: leave_one_model_out(  # noqa: E731
+        matrix, fit_fn=truth_fit_fn(truth), sizes=(10,), random_draws=30, seed=seed
+    ).results[0]
+    assert run(0).random_errors == run(0).random_errors
+    assert run(0).random_errors != run(1).random_errors
+
+
+def test_random_sets_match_the_size_the_anchor_set_came_out():
+    """A short anchor set is compared with an equally short random one."""
+    matrix, truth = synthetic_matrix(n_models=5, n_items=80, seed=19)
+    sizes_drawn: list[int] = []
+    original = AccuracyTable.accuracy
+
+    def spy(self, cols):
+        sizes_drawn.append(len(cols))
+        return original(self, cols)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(AccuracyTable, "accuracy", spy)
+        leave_one_model_out(
+            matrix,
+            fit_fn=truth_fit_fn(truth),
+            sizes=(30,),
+            select_fn=lambda fit, n: fit.item_ids[:7],
+            random_draws=4,
+        )
+    assert set(sizes_drawn) == {7}
+
+
+def test_random_sets_never_include_items_the_held_out_fit_has_no_responses_for():
+    matrix, truth = synthetic_matrix(n_models=4, n_items=40, seed=20)
+    only_model_00 = matrix.item_ids[0]
+    col = matrix.item_ids.index(only_model_00)
+    owner = np.array([matrix.derives_from[r] for r in matrix.rows])
+    keep = (matrix.cols != col) | (owner == "model-00")
+    matrix.rows, matrix.cols, matrix.obs = matrix.rows[keep], matrix.cols[keep], matrix.obs[keep]
+
+    drawn: list[np.ndarray] = []
+    original = AccuracyTable.accuracy
+
+    def spy(self, cols):
+        drawn.append(np.asarray(cols))
+        return original(self, cols)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(AccuracyTable, "accuracy", spy)
+        leave_one_model_out(
+            matrix,
+            fit_fn=truth_fit_fn(truth),
+            sizes=(39,),
+            select_fn=lambda fit, n: [i for i in fit.item_ids if i != only_model_00][:n],
+            holdouts=["model-00"],
+            random_draws=10,
+        )
+    assert all(col not in cols for cols in drawn[1:])
+
+
+def test_beats_random_counts_ties_as_half():
+    from irtcheck.validate import ModelScore, SizeResult
+
+    model = ModelScore("m", 0.5, 1.0, 0.5, 1.0, 10, 1, 0.0)
+    result = SizeResult(size=10, models=[model], random_errors=[0.0, 0.0, 1.0, 1.0])
+    assert result.mean_error == 0.0
+    assert result.beats_random == pytest.approx(0.75)
+
+
+def test_holdouts_restrict_fits_but_every_model_is_still_scored():
+    matrix, truth = synthetic_matrix(n_models=6, n_items=60, seed=21)
+    seen: list[ResponseMatrix] = []
+    report = leave_one_model_out(
+        matrix,
+        fit_fn=truth_fit_fn(truth, log=seen),
+        sizes=(10,),
+        holdouts=["model-01", "model-04"],
+        random_draws=5,
+    )
+    assert len(seen) == 2
+    assert report.n_models == 6
+    assert [m.model_id for m in report.results[0].models] == ["model-01", "model-04"]
+    with pytest.raises(ValidateError, match="does not have"):
+        leave_one_model_out(matrix, fit_fn=truth_fit_fn(truth), holdouts=["model-99"])
 
 
 # -- the headline curve ------------------------------------------------------
@@ -274,6 +356,9 @@ def test_tau_approaches_one_as_n_approaches_the_whole_suite(curve):
     """
     last = curve.results[-1]
     assert last.size == 400
+    # 400 of 400 requested, but ceiling and floor items are never eligible, so the
+    # set is not quite the suite: one near-tie may swap half a place.
+    assert last.mean_error < 0.25
     assert last.kendall == pytest.approx(1.0)
     assert last.spearman == pytest.approx(1.0)
 
@@ -283,12 +368,14 @@ def test_the_curve_is_reported_at_every_requested_size(curve):
     for result in curve.results:
         assert len(result.models) == 8
         assert np.isfinite(result.kendall)
-        assert np.isfinite(result.kendall_theta)
+        assert np.isfinite(result.random_error)
+        assert len(result.random_errors) == 200
 
 
 def test_small_anchor_sets_are_not_worse_than_chance(curve):
     """Even 25 items chosen where the models sit carry most of the ranking."""
     assert curve.results[0].kendall > 0.5
+    assert curve.results[0].mean_error < 1.5
 
 
 def test_the_curve_is_broadly_monotone_in_n(curve):
@@ -299,7 +386,9 @@ def test_the_curve_is_broadly_monotone_in_n(curve):
 def test_report_serialises_to_json(curve):
     payload = json.loads(json.dumps(curve.to_dict()))
     assert payload["n_models"] == 8
-    assert payload["headline"] == "kendall"
+    assert payload["headline"] == "place_error"
+    assert payload["random_draws"] == 200
+    assert {"place_error", "random_place_error", "beats_random"} <= set(payload["sizes"][0])
     assert [s["size"] for s in payload["sizes"]] == list(DEFAULT_SIZES)
     assert payload["sizes"][0]["models"][0]["model_id"] == "model-00"
 
@@ -389,9 +478,10 @@ def test_command_renders_and_serialises(tmp_path: Path, capsys, monkeypatch):
     monkeypatch.setattr(impl, "default_fit_fn", lambda **_: truth_fit_fn(truth))
 
     impl.run(artifact=path, sizes="10,30", as_json=False, seed=0, epochs=1)
-    rendered = plain(capsys.readouterr().out)
+    rendered = " ".join(plain(capsys.readouterr().out).split())
     assert "Leave-one-model-out" in rendered
     assert "5 models" in rendered
+    assert "beats random" in rendered
 
     impl.run(artifact=path, sizes="10,30", as_json=True, seed=0, epochs=1)
     payload = json.loads(capsys.readouterr().out)
