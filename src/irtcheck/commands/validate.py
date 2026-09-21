@@ -28,6 +28,29 @@ from irtcheck.validate import (
     parse_sizes,
 )
 
+# Below this many real models, choosing items lost to sampling them even on
+# synthetic data: the fit's item estimates are too noisy to choose from. Given
+# the true parameters the same selection won at every count. Measured, not
+# tuned: 10 and 25 models lost, 50 and 100 won clearly (docs/validation.md §5,
+# studies/true_ability/). The sweep has no point between 25 and 50.
+SELECTION_NEEDS_MODELS = 50
+
+
+def why_random_wins(n_models: int) -> str:
+    """The reason printed when random sets place held-out models as well or better."""
+    if n_models < SELECTION_NEEDS_MODELS:
+        return (
+            f"With {n_models} models the fit's item estimates are too noisy to choose from: "
+            "on synthetic data, where the truth is known, choosing beat sampling only from "
+            f"about {SELECTION_NEEDS_MODELS} models. Drop the items `report` flags and draw "
+            "the rest at random."
+        )
+    return (
+        f"At {n_models} models synthetic data has choosing ahead, so this is likely "
+        "something about this suite — it happened on HELM Lite at 95 models, and the cause "
+        "is not measured. A random draw of the unflagged items is the safer set here."
+    )
+
 
 def run(
     *,
@@ -129,9 +152,8 @@ def _render(out: Console, report: ValidationReport) -> None:
         sizes = ", ".join(f"n={n}" for n in losing)
         out.print(
             f"[yellow]At {sizes}, random item sets placed held-out models as well or better.[/yellow] "
-            "On this suite, choosing items by information does not beat sampling them at that "
-            "size — a random sample keeps the suite's mix, and full-suite accuracy is that mix. "
-            "The per-item flags from `report` do not depend on this."
+            f"{why_random_wins(report.n_models)} The per-item flags from `report` do not "
+            "depend on this."
         )
     if any(r.short for r in report.results):
         out.print(

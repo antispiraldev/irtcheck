@@ -6,10 +6,13 @@ CLI; nothing here is estimated or carried over from a paper.
 
 The short version, good news and bad news together:
 
-- **On synthetic data the pipeline is correct.** A 25-item anchor set chosen by
-  a fit that never saw the held-out model reproduces a ten-model ranking at
-  Spearman +0.994. This is a check that the code does what it says, because the
-  items really were drawn from a 2PL. It is not a claim about real suites.
+- **On synthetic data the pipeline is correct, and choosing items needs about
+  fifty models.** Parameters are recovered. Anchor sets chosen from the *true*
+  parameters beat random sets at every size; chosen from a fit, they lose below
+  roughly 25-50 models, because the fit's item estimates are too noisy to choose
+  from, and win clearly from 50 (§5). This is a check that the code does what
+  it says, because the items really were drawn from a 2PL. It is not a claim
+  about real suites.
 - **A real per-item response matrix exists and is public**, and the tool runs
   on it: HELM Lite's released per-instance predictions, 95 models × 3,551
   items, no authentication needed.
@@ -19,11 +22,14 @@ The short version, good news and bad news together:
   going from 12 to 95 models, and the per-scenario output produces a finding
   synthetic data could not have — including a scoring artefact that makes four
   strong models score below chance.
-- **On that real matrix the anchor-set claim is much weaker.**
-  Leave-one-model-out gives Spearman **+0.691 at n=25** and **+0.881 at
-  n=400**, against +0.994 and +1.000 synthetic. Twenty-five items do not reproduce the ranking here. This
-  is the most important number on the page and the reason the synthetic table
-  is labelled as carefully as it is.
+- **On that real matrix, choosing items loses to sampling them** (§5). From
+  100 items up, random sets placed held-out models closer to their full-suite
+  place than `select`'s sets did, at twelve models and at ninety-five — and
+  classical item-rest correlation did no better. At twelve models that is what
+  the synthetic runs predict; at ninety-five it is not, so something about the
+  real suite is costing selection there, and what is not yet measured. This is
+  the most important finding on the page, and it changed what `validate`
+  measures and what the README says `select` is for.
 - **The fitter is cross-checked against `mirt` and `py-irt`, and the check
   found a real bug.** Agreement with `mirt` 1.41 is Spearman 0.949 on
   discrimination and 0.9991 on difficulty. The bug was in the *intervals*
@@ -72,30 +78,34 @@ irtcheck validate synth.irt
 The fit: **9.7 s** on CPU (32-core x86-64, torch CPU wheel), 12,000 responses,
 100% dense.
 
-| n   | items | Spearman | Kendall tau | Spearman (theta) | tau (theta) |
-| --- | ----- | -------- | ----------- | ---------------- | ----------- |
-| 25  | 25    | +0.994   | +0.978      | +0.988           | +0.956      |
-| 50  | 50    | +0.988   | +0.956      | +0.976           | +0.911      |
-| 100 | 100   | +1.000   | +1.000      | +1.000           | +1.000      |
-| 200 | 200   | +1.000   | +1.000      | +1.000           | +1.000      |
-| 400 | 400   | +1.000   | +1.000      | +1.000           | +1.000      |
+| n   | places off | random | beats random | Spearman | random |
+| --- | ---------- | ------ | ------------ | -------- | ------ |
+| 25  | 1.25       | 0.69   | 3%           | +0.953   | +0.946 |
+| 50  | 0.90       | 0.47   | 0%           | +0.975   | +0.973 |
+| 100 | 0.75       | 0.25   | 0%           | +0.966   | +0.989 |
+| 200 | 0.55       | 0.11   | 0%           | +0.994   | +0.996 |
+| 400 | 0.10       | 0.04   | 22%          | +0.997   | +0.998 |
 
-At n=200 and n=400 every held-out fit had fewer confident items than asked for
-— as few as 123 — and `select` padded the rest from `insufficient-data` items
-(§4). Without padding those two rows score the same +1.000 on 123 items.
+Places off is out of ten. Held-out models land within about a place of where
+the full suite puts them — and a random set of the same size lands them
+closer, at every size. That is not a bug in the pipeline: at ten models the
+fit's item estimates are too noisy to choose from, and the same selection code
+given the true parameters places every held-out model exactly from 50 items.
+§5 has the measurements. At n=200 and n=400 the held-out fits run out of
+confident items and `select` pads the rest from `insufficient-data` items (§4).
 
-n=50 scoring marginally below n=25 is not a bug and not worth reading into.
-With ten models a single swapped adjacent pair moves Spearman by about 0.012,
-which is the entire difference between those two rows. The trend across n is
-the signal; any one cell is one swapped pair wide.
+Until §5, this section showed a different table: each held-out model scored on
+its own anchor set, Spearman +0.994 at n=25. That protocol mixed set difficulty
+into the score and had no random baseline, and it is the number the README
+used to quote as evidence that twenty-five items are enough.
 
 ### What this does and does not establish
 
-**It establishes** that the fitter recovers structure, that selection picks
-items carrying information about the respondents present, and that
+**It establishes** that the fitter recovers structure and that
 leave-one-model-out is wired up without leakage — a held-out model's prompt
 variants really are dropped with it, via `ResponseMatrix.drop_model()` and
-`derives_from`. Break any of those and this table collapses.
+`derives_from`. It does *not* establish that selection helps at this model
+count; §5 finds it does not.
 
 **It does not establish** that IRT describes real eval suites. The items here
 were generated from a 2PL, so a 2PL fits them by construction. Real items have
@@ -360,6 +370,12 @@ these are 2024-era HELM Lite runs besides.
 
 ### 2c. The headline claim on real data, and it is much weaker
 
+> **Superseded by §5.** This table uses the protocol `validate` had before §5:
+> each held-out model scored on its own anchor set, with no random baseline.
+> §5 found that protocol mixes set difficulty into the score, and that random
+> sets of the same size do better than these. The numbers are kept because the
+> hypotheses below still stand and §2d still refers to them.
+
 This is the number that matters, and it is the least flattering thing on this
 page. `irtcheck validate` on the same twelve-model matrix — twelve holdout
 refits, an anchor set chosen each time by a fit that never saw the held-out
@@ -448,13 +464,9 @@ measured here; two of them could be, on this same data, and §2d says how.
 It does not invalidate `report` or `select`: the per-item flags, the
 `insufficient-data`/`dead` distinction, and the per-scenario finding in §2b all
 hold up and are the parts that behaved as designed on real data. It does mean
-**the anchor-set claim needs stating with an honest n**. On this matrix, at
-twelve models, a few hundred items reproduce the ranking usefully and
-twenty-five do not.
-
-It also means `validate` is doing its job. A tool that reported +0.99 here
-would be broken; this one reported +0.69 at n=25 and flagged, through the theta
-columns, that the small anchor sets were mis-centred.
+**the anchor-set claim needs stating with an honest n** — and §5, which added
+the comparison this section lacked, found the honest statement is weaker still:
+random items of the same size did better.
 
 ### 2d. Two of those hypotheses are testable on this data
 
@@ -750,10 +762,9 @@ and then, per record, `{"model_id": <model>, "item_id": "<scenario>_<instance_id
   **Split** into `dead` and `inverted` in schema 2 — see §2e. §4 then found
   that the fit only *detects* about half of mis-keyed items, which is a
   different problem and is not fixed.
-- **No real-data leave-one-model-out beyond twelve and twenty-five models.**
-  The full 95-model sweep is 95 refits and was not run. Whether rank recovery
-  keeps improving past twenty-five respondents is therefore open, and it is the
-  single most useful thing anyone could measure next on this data.
+- ~~**No real-data leave-one-model-out beyond twelve and twenty-five models.**~~
+  **Run** at 95 models with 24 holdouts, in §5 — and against random sets, which
+  is what turned out to matter.
 - **None of the causes of the §2c shortfall is measured.** All four are
   hypotheses. Two of them are testable on exactly this data and §2d says how;
   they are the next thing to run.
@@ -764,11 +775,9 @@ and then, per record, `{"model_id": <model>, "item_id": "<scenario>_<instance_id
 - ~~**No claim about how many respondents you need.**~~ **Measured, on
   synthetic data** — §4. The answer is not one number, and the refusal the
   report prints today reads the wrong one.
-- **Classical item-rest correlation has not been compared on real data.** §4
-  finds it selects anchor sets as good as the fit's on synthetic matrices
-  generated *by a 2PL*, the case most favourable to IRT. The same comparison
-  inside HELM leave-one-model-out is the obvious next measurement, and nothing
-  on this page says which way it goes.
+- ~~**Classical item-rest correlation has not been compared on real data.**~~
+  **Compared**, in §5: on HELM it does no better than the fit, and both lose to
+  random sets from 100 items up.
 
 ---
 
@@ -1015,3 +1024,220 @@ than a tuning. What the measurements support:
 whose true `a` was below `DEAD_THRESHOLD` never exceeded 5.6%, and usable items
 that were truly backwards never exceeded 1.5% — the latter being the sign
 barrier again.
+
+---
+
+## 5. Choosing items against sampling them
+
+§2c reported how well anchor sets reproduce a real ranking, and nothing on this
+page said what that number should be compared with. This section compares it
+with the obvious thing: **random items, the same number of them**. On HELM
+Lite, choosing lost. Everything below is
+[`studies/helm_selection/`](../studies/helm_selection/), which runs through
+`irtcheck.validate` itself, so each column is what `irtcheck validate` prints
+for that way of choosing.
+
+### The protocol changed first, because the old one was measuring set difficulty
+
+`validate` used to score each held-out model on *its own* anchor set and
+correlate those scores across holdouts. The holdouts do not choose the same
+set. On the twelve-model matrix, the twelve 100-item sets shared **11** items,
+and their mean accuracy over the other eleven models ranged **0.49 to 0.77** —
+so a held-out model's score said as much about how hard its set happened to be
+as about the model. That protocol gave per-scenario selection +0.991 at n=400
+(ahead of random's +0.982) and item-rest correlation +0.655 at the same size;
+neither number is only about ranking.
+
+`validate` now does what a user does with an anchor set: for held-out model
+*k*, choose the set without it, **score every model on that one set**, and
+measure how many places *k* lands from its full-suite place. That is the
+headline, *places off*. Beside it, the same for 200 random sets of the same
+size, drawn from the items the held-out fit has responses for, and the share
+of those draws the anchor set beats. The re-estimated-ability columns are gone:
+they existed to correct for sets differing in difficulty between holdouts,
+which scoring everyone on one set removes. The old protocol's numbers are kept
+at the bottom of each study output so §2c can be traced.
+
+### Twelve models
+
+All twelve held out. Places off, out of 12, and the share of random draws each
+selector beats:
+
+| n   | random | tool         | per-scenario | item-rest    |
+| --- | ------ | ------------ | ------------ | ------------ |
+| 25  | 1.34   | 1.88 · 9%    | 1.79 · 12%   | 2.21 · 1%    |
+| 50  | 0.92   | 2.00 · 0%    | 1.83 · 0%    | 2.08 · 0%    |
+| 100 | 0.65   | 1.96 · 0%    | 1.71 · 0%    | 1.83 · 0%    |
+| 200 | 0.38   | 1.92 · 0%    | 1.71 · 0%    | 1.75 · 0%    |
+| 400 | 0.19   | 2.08 · 0%    | 1.42 · 0%    | 1.75 · 0%    |
+
+`tool` is `select`; `per-scenario` splits n across the eighteen scenarios by
+their size and picks the most informative items within each; `item-rest` is the
+classical index over the held-out matrix and uses no IRT at all.
+
+### Ninety-five models
+
+Twenty-four held out, spread evenly across the accuracy ranking. Out of 95:
+
+| n   | random | tool         | per-scenario | item-rest    |
+| --- | ------ | ------------ | ------------ | ------------ |
+| 25  | 12.16  | 9.75 · 84%   | 10.71 · 72%  | 15.56 · 8%   |
+| 50  | 9.35   | 9.88 · 38%   | 9.35 · 49%   | 14.25 · 0%   |
+| 100 | 6.97   | 10.83 · 0%   | 9.85 · 3%    | 10.02 · 2%   |
+| 200 | 5.06   | 9.15 · 0%    | 9.19 · 0%    | 8.75 · 0%    |
+| 400 | 3.50   | 8.40 · 0%    | 8.52 · 0%    | 8.40 · 0%    |
+
+Each holdout fit here had 2,905–2,937 confidently estimated items, so this is
+not the small-sample regime.
+
+### What it shows
+
+**From 100 items up, random sets placed held-out models better than any way of
+choosing, at both model counts** — no selector beat more than 3% of the random
+draws. At twelve models
+choosing lost at every size. The one place choosing won is 95 models and 25
+items, where `select` beat 84% of random draws; at 50 it is even.
+
+**The chosen sets stop improving and the random ones do not.** At twelve models
+`select`'s error is 1.9–2.1 places at every size from 25 to 400, while random's
+falls from 1.34 to 0.19. At ninety-five, 9.75 to 8.40 against 12.16 to 3.50.
+Error that does not shrink as items are added is what a bias looks like rather
+than noise.
+
+**It is not the 2PL in particular.** Item-rest correlation, which never touches
+the 2PL, plateaus the same way and is no better — both choose items from
+estimates made on the same few models, which the synthetic runs below find is
+what fails at twelve. **It is not only the scenario mix.**
+`select`'s 100-item sets at twelve models take 7% of their items from the
+LegalBench citizenship scenario, which is 28% of the suite, and splitting by
+scenario does help — 1.42 against 2.08 places at n=400 — but it stays far
+behind random's 0.19. (A one-off check, not in the committed script: removing
+that scenario from the full-suite ranking left `select` losing to random by the
+same margin.)
+
+**The two ways of scoring agree from 100 items up, and not below it.** The
+study also prints Spearman between held-out and full-suite places. At n=25 it
+favours `select` — +0.913 against random's +0.858 at twelve models, +0.897
+against +0.833 at ninety-five — while places off favours random at twelve.
+Spearman rewards getting the order roughly right when every model is a place
+or two out; places off rewards landing close. From n=100 up random leads on
+both.
+
+### On synthetic data: it is the estimates, and more models fix them
+
+The obvious reading of the tables above was that HELM Lite is several subjects
+and a 2PL has one dimension. The README's own synthetic matrix — one dimension
+by construction, 10 models × 2 variants, 600 items, seed 5 — says otherwise:
+`irtcheck validate` on it has random sets ahead at every size.
+
+| n   | `select` places off | random | beats random |
+| --- | ------------------- | ------ | ------------ |
+| 25  | 1.25                | 0.69   | 3%           |
+| 50  | 0.90                | 0.47   | 0%           |
+| 100 | 0.75                | 0.25   | 0%           |
+| 200 | 0.55                | 0.11   | 0%           |
+| 400 | 0.10                | 0.04   | 22%          |
+
+Synthetic data has ground truth, so the candidate causes can be removed one at
+a time. Everything below is
+[`studies/true_ability/`](../studies/true_ability/), and runs through the
+unchanged `leave_one_model_out` loop with only one piece swapped each time.
+
+**Not the target.** `validate` measures placement against observed full-suite
+accuracy, which a random sample estimates without bias and an informative set
+does not. Measured against *true ability* instead, the result does not move:
+under a 2PL with positive slopes, true ability and noise-free expected accuracy
+rank models identically, and random still wins at 10 models and at 25.
+
+**Not the scoring.** Information-based selection is optimal for a set scored by
+estimated ability, and `validate` scores by plain accuracy. Re-scored by MAP
+ability with the held-out fit's item parameters — the `map_theta` `validate`
+carried before this section — `select` still lost at every size below 400, and
+random sets mostly got *worse*, because weighting by a noisy `a` adds error that
+counting does not.
+
+**Not the objective.** An *oracle* — the same `select_item_ids` on the held-out
+fit with `a`, `b` and theta replaced by the truth — beat random at every size
+at every model count tried, in 70-100% of draws. At ten models its 50-item
+sets placed every held-out model exactly. The information objective is right;
+what it is given is not.
+
+**It is the estimates.** At 25 models and 25 items: the items the oracle picks
+have true `a` 2.40 and are *fitted* at 1.41, so the fit passes over them; what
+it picks instead has true `a` 1.61, fitted at 1.86 — chosen partly for being
+over-read. And those sets leave about 7 of 25 models answering every item right
+or every item wrong, tied with each other, against about 1 for the oracle's
+sets and none for random ones. The obvious remaining suspect, a narrow
+difficulty range, is ruled out by the oracle: its sets are narrower still (sd of
+true `b` 0.50 against 0.68) and win.
+
+**And more models fix them.** Share of random draws `select` beat, 800 items,
+seed 0; 10 and 25 models hold every model out, 50 and 100 hold out 25 spread
+across the ability range:
+
+| n   | 10 models | 25 models | 50 models | 100 models | oracle, 50 / 100 |
+| --- | --------- | --------- | --------- | ---------- | ---------------- |
+| 25  | 3%        | 38%       | 98%       | 100%       | 98% / 100%       |
+| 50  | 0%        | 15%       | 94%       | 100%       | 100% / 100%      |
+| 100 | 0%        | 46%       | 95%       | 92%        | 98% / 100%       |
+| 200 | 0%        | 31%       | 75%       | 86%        | 96% / 100%       |
+| 400 | 22%       | 16%       | 32%       | 58%        | 98% / 100%       |
+
+(The 10-model column is the README matrix, 600 items, seed 5.) From fifty
+models the over-reading is gone — picked items fitted at 1.98, truly 2.01 —
+and at n=25 `select` places models nearly as well as the oracle, 3.96 against
+3.84 places off with random at 6.02. At n=400, half the suite, it is level with
+random and behind the oracle: once the good items are in, the fit ranks what
+is left less reliably than the truth does.
+
+**The two scores disagree in between, and that reconciles §4.** At 25 models
+Spearman favours `select` (+0.886 against random's +0.828 at n=25, true
+ability) while places off favours random — the same direction as §4's 0.972
+against 0.919, which ranks fresh models by Spearman. Why the two disagree is
+not measured; the models `select`'s small sets leave tied are a candidate.
+Neither score is wrong; places off is the one a user placing one new model
+experiences.
+
+### What that says about HELM
+
+The twelve-model HELM result is what the synthetic runs predict at that model
+count, and needs no appeal to the data being real. The ninety-five-model result
+is not: synthetic data at 100 models has `select` winning clearly up to n=200,
+and on HELM it lost from n=100 up. Something about the real suite costs
+selection there — the several-subjects reading is a candidate again, for that
+case only, alongside guessing floors and label noise that §2c lists. None is
+measured. A single-subject real suite, or HELM restricted to one scenario, is
+the test.
+
+### What this changed
+
+- `validate` scores every model on one fixed set, prints random sets of the
+  same size beside every row, and says so in yellow when choosing loses — with
+  a reason that depends on the model count: below fifty, the estimates; from
+  fifty, possibly the suite.
+- The README stops describing `select` as finding the smallest subset that
+  reproduces your ranking. Below about fifty models, its use is removing items
+  the fit can say something definite about — `dead`, `inverted`, ceiling and
+  floor — and drawing the rest at random. Above that, it can beat random, and
+  `validate`'s random column says whether it does on your suite.
+- The per-item flags, §2's findings about scenarios, and the intervals are
+  untouched: nothing here scores them.
+
+### What it does not settle
+
+- **Why HELM loses at 95 models.** Not measured. A single-subject real suite,
+  or HELM restricted to one scenario, is the next thing to run.
+- **Where between 25 and 50 models selection starts to pay.** The sweep has no
+  point in between, one seed per model count, and each count draws its own
+  800-item suite, so the columns are not the same items. "About fifty" is the
+  resolution this supports.
+- **Selecting with the uncertainty in `a`.** The failure is choosing on point
+  estimates that are over- and under-read; averaging information over the fit's
+  interval on `a` instead of using its mean is the obvious fix and is not tried.
+- **Filter, then sample** — drop the flagged items and draw the rest at random
+  — was not scored. It is what the README now suggests in spirit, and the
+  §4 synthetic study found filtering ceiling and floor alone barely moves a
+  random set.
+- **Holdout fits are not bit-reproducible** across machines and thread counts;
+  two runs of one twelve-model cell differed by 0.007 Spearman. The committed
+  tables come from one set of cached fits.

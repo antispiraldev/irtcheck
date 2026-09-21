@@ -13,8 +13,8 @@ circular and worthless — the anchor set was chosen knowing the answer. So:
   6. repeat for every model; report the mean distance against n, beside the
      same distance for random item sets of the same size.
 
-**Every model is scored on the same set, and that is a correction.** Until
-0.1.0 was tagged, step 4 scored only model k, each on its own S_k, and the
+**Every model is scored on the same set, and that is a correction.** Before
+this protocol, step 4 scored only model k, each on its own S_k, and the
 headline was a rank correlation across those scores. Different holdouts choose
 different sets — on the twelve-model HELM matrix, the twelve 100-item sets
 shared 11 items and their mean accuracy ranged 0.49-0.77 — so that correlation
@@ -28,8 +28,11 @@ for sets differing in difficulty between holdouts, and went with the problem.
 Measured on HELM Lite (docs/validation.md §5), anchor sets chosen by the 2PL
 placed held-out models *worse* than random sets of the same size from 100
 items up, at twelve models and at ninety-five — and item-rest correlation did
-no better. A number with nothing to compare it to would have hidden that. The
-draws are seeded, so the same artifact and settings give the same output.
+no better. On synthetic data, where the truth is known, the same happened
+below about fifty models and reversed above it: the fit's item estimates, not
+the selection, were the limit (§5, studies/true_ability/). A number with
+nothing to compare it to would have hidden all of that. The draws are seeded,
+so the same artifact and settings give the same output.
 
 **Holding out a model means holding out every pseudo-respondent derived from
 it.** With --respondent-key model_id,prompt_variant one real model is several

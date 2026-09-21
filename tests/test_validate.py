@@ -487,3 +487,18 @@ def test_command_renders_and_serialises(tmp_path: Path, capsys, monkeypatch):
     payload = json.loads(capsys.readouterr().out)
     assert [s["size"] for s in payload["sizes"]] == [10, 30]
     assert payload["source"] == str(path)
+
+
+def test_the_reason_random_wins_depends_on_the_model_count():
+    """Below the measured count the estimates are to blame, not the suite.
+
+    The first version of this message blamed the suite's subject mix, and it
+    printed that on a one-dimensional synthetic matrix, where there is no mix.
+    """
+    from irtcheck.commands.validate import SELECTION_NEEDS_MODELS, why_random_wins
+
+    few = why_random_wins(SELECTION_NEEDS_MODELS - 1)
+    many = why_random_wins(SELECTION_NEEDS_MODELS)
+    assert "estimates" in few and "at random" in few
+    assert "mix" not in few
+    assert "this suite" in many and "estimates" not in many

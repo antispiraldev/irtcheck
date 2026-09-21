@@ -2,7 +2,8 @@
 
 Fit an item response theory model to an eval response matrix **you already
 have**, and find out which items carry measurement signal, which are dead
-weight, and what a minimal high-information subset looks like.
+weight or backwards, and whether a smaller subset would rank your models as
+well as the whole suite.
 
 Eval suites are scored by aggregate accuracy over a fixed item set, which
 treats every item as equally informative. In practice items vary enormously in
@@ -14,7 +15,8 @@ irtcheck answers three questions about a suite you already ran:
 
 1. Which items discriminate, and which give everyone the same answer?
 2. Is the suite measuring precisely in the ability range your models occupy?
-3. What is the smallest subset that reproduces the full-suite ranking?
+3. Does a subset of it rank models as well as the whole thing — and does
+   choosing that subset beat drawing it at random?
 
 It does **not** run evals. No API keys, no inference cost, no network at
 runtime.
@@ -105,12 +107,16 @@ Marginal gain: first item 0.6285, last item 0.3553. Where that flattens is where
 
 $ irtcheck validate suite.irt
 Leave-one-model-out · 10 models · 600 items · 20 respondents (key model_id+prompt_variant)
-    n  items  Spearman  Kendall tau  Spearman (theta)  tau (theta)
-   25     25    +0.994       +0.978            +0.988       +0.956
-   50     50    +0.988       +0.956            +0.976       +0.911
-  100    100    +1.000       +1.000            +1.000       +1.000
-  200    200    +1.000       +1.000            +1.000       +1.000
-  400    400    +1.000       +1.000            +1.000       +1.000
+    n  items  places off  random  beats random  Spearman  random
+   25     25        1.25    0.69            3%    +0.953  +0.946
+   50     50        0.90    0.47            0%    +0.975  +0.973
+  100    100        0.75    0.25            0%    +0.966  +0.989
+  200    200        0.55    0.11            0%    +0.994  +0.996
+  400    400        0.10    0.04           22%    +0.997  +0.998
+At n=25, n=50, n=100, n=200, n=400, random item sets placed held-out models as well or better.
+With 10 models the fit's item estimates are too noisy to choose from: on synthetic data, where
+the truth is known, choosing beat sampling only from about 50 models. Drop the items `report`
+flags and draw the rest at random.
 ```
 
 **Ten models is below where this tool can rank items, and it says so.** That is
@@ -121,16 +127,13 @@ confident table here would be making most of it up. (At n=200 and 400 the
 held-out fits run out of confident items and `select` pads the rest — see
 [`select`](#select).)
 
-That last table is the headline: a 25-item subset, chosen by a fit that never
-saw the model it was then used to rank, put ten models in almost exactly their
-full-suite order.
-
-> **Those numbers are from synthetic data, and the real ones are much weaker.**
-> On a real 12-model × 3,551-item matrix the same command gives Spearman
-> **+0.691 at n=25** and **+0.881 at n=400** — not +0.994 and +1.000. The
-> synthetic table checks that the code is correct; it is not evidence that
-> twenty-five items are enough for your suite. Read
-> [Does it actually work?](#does-it-actually-work) before quoting either.
+That last table is the headline, and it is not flattering: a held-out model,
+placed among the others on a set chosen by a fit that never saw it, lands
+closer to its full-suite place on a *random* set of the same size. Ten models
+is too few to choose items from — the fit's estimates of which items are sharp
+are too noisy — and on synthetic data choosing starts to pay at about fifty.
+Read [Does it actually work?](#does-it-actually-work) before using an anchor set
+as a stand-in for the suite.
 
 Fitting is the slow part, so it is behind a cached artifact: `report`,
 `select` and `validate` read `suite.irt` and are instant (`validate` refits, so
@@ -174,8 +177,15 @@ to this tool. On real suites expect each to be no better.
   beat a random draw by 0.04 Spearman on average. It was level with classical
   item-rest correlation, not better, and a set that is mostly padding is only
   as good as the point estimates behind it.
-- **Small anchor sets reproduce the ranking much less well on real data** than
-  on synthetic data. See [Does it actually work?](#does-it-actually-work).
+- **Below about fifty models, a random set beats `select`'s.** On synthetic
+  data, where the truth is known, sets chosen from the fit placed held-out
+  models worse than random sets at 10 and 25 models and clearly better from 50;
+  given the true item parameters the same code wins at every count. The fit's
+  item estimates are the limit, and more models fix them.
+- **On HELM Lite at 95 models, choosing still lost from 100 items up**, which
+  the synthetic runs do not predict. The cause is not measured. `validate`
+  prints the random baseline beside every row so you can see which way your
+  suite goes. See [Does it actually work?](#does-it-actually-work).
 - **`--adaptive` is declared and not implemented**, and exits saying so.
 - **`pip install irtcheck` on Linux pulls PyPI's default `torch`**, which
   bundles CUDA and is a download of several gigabytes. If you do not have a GPU,
@@ -530,6 +540,21 @@ irtcheck select suite.irt -n 100 -o anchor.json
     --adaptive               per-respondent selection — NOT IMPLEMENTED YET
 ```
 
+**Read this before using an anchor set as a smaller stand-in for the suite.**
+Choosing the most informative items needs good estimates of which items are
+informative, and with few models the fit does not have them: it under-reads
+the sharpest items and over-reads some ordinary ones. On synthetic data,
+`select`'s sets placed models *worse* than random sets of the same size at 10
+and 25 models, and clearly better from 50
+([`docs/validation.md` §5](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md#5-choosing-items-against-sampling-them)).
+On the one real suite measured, HELM Lite, they lost at 95 models too, from
+100 items up, for reasons not yet measured.
+
+So below about fifty models, use the fit for what it can say — `dead`,
+`inverted`, ceiling and floor, which items to remove — and draw the rest at
+random. With more, `select` can beat random; run `validate` on your own suite,
+which prints the random baseline beside every row, before relying on it.
+
 Emits the N most informative items as JSON. Item information for a 2PL is
 `I_i(theta) = a_i^2 * P_i(theta) * (1 - P_i(theta))`, and **the integral is
 taken against the posterior ability means of the respondents in your matrix**,
@@ -578,9 +603,18 @@ selection. Twelve models × 3,551 items is twelve refits.
 Selecting items using every model and then reporting that the subset reproduces
 the ranking of those same models is circular and worthless: the anchor set was
 chosen knowing the answer. So instead, for each model *k*: hold it out, fit on
-what remains, select an anchor set of size *n* from *that* fit, score model *k*
-on the anchor items only, and compare its rank to its full-suite rank. Report
-Spearman and Kendall tau against *n*.
+what remains, select an anchor set of size *n* from *that* fit, **score every
+model on that one set** by plain accuracy — which is what you do with an anchor
+set — and measure how many places *k* lands from its full-suite place. That is
+the headline, *places off*, and 0 is exact.
+
+**Beside every row is the same measurement for 200 random sets of the same
+size**, and the share of those draws the anchor set beat. A number with nothing
+to compare it to hid the most important result on this page: on real data,
+random sets won. When they do, `validate` says so in yellow. The draws are
+seeded, so one artifact and one set of flags give the same output. A Spearman
+between held-out and full-suite places is printed too, with its own random
+column.
 
 **Holding out a model holds out every pseudo-respondent derived from it.** With
 `--respondent-key model_id,prompt_variant` one model is several respondents;
@@ -588,19 +622,21 @@ dropping one row would leak that model's other variants into the fit that
 chooses the anchor set, and the correlation would come out inflated with nothing
 anywhere to catch it.
 
-The headline columns are plain accuracy over the anchor items, because that is
-what you actually do with an anchor set once you have it. The dim columns
-re-estimate ability from the same responses with item parameters held fixed; the
-two diverge exactly when an anchor set skews hard or easy, which is worth
-seeing.
+Earlier versions of `validate` scored each held-out model on *its own* anchor set and
+correlated those scores. Different holdouts choose different sets — on the
+twelve-model HELM matrix, twelve 100-item sets shared 11 items and ranged from
+0.49 to 0.77 mean accuracy — so that number mixed "does the set rank models"
+with "how hard did this holdout's set happen to be". The re-estimated-ability
+columns existed to correct for that, and went with it.
 
 ---
 
 ## Does it actually work?
 
-Partly, and the parts matter. The per-item analysis holds up on real data; the
-small-anchor-set claim does not hold up nearly as well as the synthetic number
-suggests. All three answers below are measured, and the least flattering one is
+Partly, and the parts matter. The per-item analysis holds up on real data.
+Choosing an anchor set beats drawing one at random only with enough models —
+about fifty on synthetic data — and on the one real suite measured it lost even
+at ninety-five. All three answers below are measured, and the least flattering one is
 last rather than omitted.
 
 ### On synthetic data: yes, and that only proves the pipeline is correct
@@ -609,22 +645,26 @@ The numbers in the quickstart are real measurements, on a matrix generated from
 a known 2PL by `irtcheck.synth` — 10 models × 2 prompt variants, 600 items,
 seed 5:
 
-| n   | items | Spearman | Kendall tau |
-| --- | ----- | -------- | ----------- |
-| 25  | 25    | +0.994   | +0.978      |
-| 50  | 50    | +0.988   | +0.956      |
-| 100 | 100   | +1.000   | +1.000      |
-| 200 | 200   | +1.000   | +1.000      |
-| 400 | 400   | +1.000   | +1.000      |
+| n   | places off | random | beats random | Spearman | random  |
+| --- | ---------- | ------ | ------------ | -------- | ------- |
+| 25  | 1.25       | 0.69   | 3%           | +0.953   | +0.946  |
+| 50  | 0.90       | 0.47   | 0%           | +0.975   | +0.973  |
+| 100 | 0.75       | 0.25   | 0%           | +0.966   | +0.989  |
+| 200 | 0.55       | 0.11   | 0%           | +0.994   | +0.996  |
+| 400 | 0.10       | 0.04   | 22%          | +0.997   | +0.998  |
 
-(From n=200 up, the held-out fits had as few as 123 confident items; `select`
-fills the rest from `insufficient-data` items and says how many. Unpadded, those
-rows score the same +1.000 on 123 items.)
+Out of 10 places. The held-out models land close to their full-suite place
+either way, and the Spearman columns are near 1 for both, but at every size a
+random set lands them closer. That is the model count, not the code: the same
+selection given the true item parameters places every held-out model exactly
+from 50 items, and with fifty or more models the fitted version beats random
+too. (From n=200 up, the held-out fits run out of confident items and `select`
+pads the rest from `insufficient-data` items.)
 
 **This is synthetic data, and the items really do come from a 2PL because we
 drew them from one.** Real eval items do not. So this table is a correctness
-check on the pipeline — the fitter recovers parameters, selection picks
-informative items, leave-one-model-out is wired up without leakage — and it is
+check on the pipeline — the fitter recovers parameters, leave-one-model-out is
+wired up without leakage, and selection needs more than ten models — and it is
 *not* evidence about how well IRT describes your suite. Read it as "the code
 does what it says", not "IRT works on evals".
 
@@ -697,39 +737,56 @@ because it fails to discriminate. Split apart, this matrix has **no** `dead`
 items at either respondent count and 32 `inverted` ones.
 [`docs/validation.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md) §2e has the detail.
 
-### On real data: the anchor-set claim is much weaker, and you should know that
+### On real data: choosing items lost to sampling them
 
 This is the least flattering measurement here and the one most worth reading.
-`irtcheck validate` on that same twelve-model real matrix:
+`irtcheck validate` on the same HELM matrix, with every model scored on each
+held-out model's anchor set and 200 random sets of the same size alongside.
+Places off, lower is better, and the share of random draws each selector beat:
 
-| n   | items | Spearman | Kendall tau | synthetic Spearman |
-| --- | ----- | -------- | ----------- | ------------------ |
-| 25  | 25    | +0.691   | +0.523      | +0.994             |
-| 50  | 50    | +0.755   | +0.545      | +0.988             |
-| 100 | 100   | +0.671   | +0.485      | +1.000             |
-| 200 | 200   | +0.782   | +0.585      | +1.000             |
-| 400 | 400   | +0.881   | +0.758      | +1.000             |
+| n   | 12 models: random | `select`    | 95 models: random | `select`    |
+| --- | ----------------- | ----------- | ----------------- | ----------- |
+| 25  | 1.34              | 1.88 · 9%   | 12.16             | 9.75 · 84%  |
+| 50  | 0.92              | 2.00 · 0%   | 9.35              | 9.88 · 38%  |
+| 100 | 0.65              | 1.96 · 0%   | 6.97              | 10.83 · 0%  |
+| 200 | 0.38              | 1.92 · 0%   | 5.06              | 9.15 · 0%   |
+| 400 | 0.19              | 2.08 · 0%   | 3.50              | 8.40 · 0%   |
 
-**On this real matrix a 25-item anchor set does not reproduce the ranking.** It
-takes a few hundred items to reach +0.88, which is useful; twenty-five do not,
-and the curve is not even monotone in n. At n=400, two of the twelve held-out
-fits ran out of confident items and were padded; the accuracy ranking came out
-identical to the unpadded one. Four candidate causes — a unidimensional 2PL fitted
-across maths, law and commonsense, twelve respondents being thin for a rank
-correlation, mislabelled responses, and multiple-choice guessing a 2PL has no
-parameter for — are laid out in [`docs/validation.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md) **as
-hypotheses, none of them measured**, along with how two of them could be tested
-on the same data.
+(All twelve models held out in the first pair of columns; twenty-four, spread
+across the accuracy ranking, out of 95 in the second.)
 
-This does not invalidate `report` or `select`: the flags, the
-`insufficient-data`/`dead` distinction and the per-scenario finding above all
-behaved as designed on real data. It does mean the anchor-set claim needs
-stating with an honest n. **And it means `validate` is doing its job** — a tool
-that reported +0.99 here would be broken.
+**From 100 items up, random sets placed held-out models better, at both model
+counts.** The one win for choosing is 95 models and 25 items. And the chosen
+sets stop improving while random ones do not: `select` sits near two places
+off at every size at twelve models while random falls from 1.34 to 0.19 —
+error that does not shrink as items are added is a bias, not noise.
 
-The full method, the per-scenario tables, a non-IRT cross-check that agrees,
-the places where it disagrees, and the commands to reproduce all of it are in
-[`docs/validation.md`](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md).
+**At twelve models this is expected.** Synthetic data, where the answer is
+known, loses the same way at ten and twenty-five models, and for a measured
+reason: the fit's item estimates are too noisy to choose from. Classical
+item-rest correlation, which estimates from the same few models without the
+2PL, does no better.
+
+**At ninety-five it is not.** Synthetic data at a hundred models has `select`
+winning clearly up to 200 items; here it lost from 100. Something about the
+real suite costs selection at that count, and it is not measured. HELM Lite is
+maths, law and general knowledge while a 2PL has one dimension, which makes
+that a candidate, alongside guessing floors and label noise. Splitting the
+budget across the eighteen scenarios by size did not help at that count: 8.52
+places off at n=400, against `select`'s 8.40 and random's 3.50.
+
+This does not touch `report`: the flags, the `insufficient-data`/`dead`/
+`inverted` distinction and the per-scenario findings above are not scored by
+this and behaved as designed on real data. It does change what `select` is for
+— see [`select`](#select). **And it means `validate` is doing its job**: the
+old protocol, with no random column, reported these same anchor sets as
+reasonable.
+
+Every holdout, all four selectors, the Spearman view and the old protocol's
+numbers for comparison are in
+[`docs/validation.md` §5](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md#5-choosing-items-against-sampling-them),
+and [`studies/helm_selection/`](https://github.com/antispiraldev/irtcheck/tree/master/studies/helm_selection)
+reproduces them.
 
 ### What we have not done
 
