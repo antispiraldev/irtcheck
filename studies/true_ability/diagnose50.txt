@@ -1,0 +1,29 @@
+50 models x 1 variants, 800 items, seed 0, 25 held out
+true model abilities span -2.33 .. +1.96
+
+Places off vs true theta, scored by accuracy ('beats' = share of 200 random draws)
+    n |  select  beats |  oracle  beats |  random
+   25 |    3.96   98%  |    3.84   98%  |    6.02
+   50 |    3.32   94%  |    2.44  100%  |    4.49
+  100 |    2.36   95%  |    2.28   98%  |    3.27
+  200 |    2.08   75%  |    1.66   96%  |    2.28
+  400 |    1.78   32%  |    1.16   98%  |    1.67
+
+What the sets contain (mean over holdouts; random = 20 draws per holdout)
+    n  set     | true a  fitted a | sd(true b)  saturated models | info mean  info min
+   25  select  |   2.01      1.98 |       0.51              7.24 |     14.76      1.73
+   25  oracle  |   2.44      1.75 |       0.51              4.00 |     18.72      1.08
+   25  random  |   0.98      0.92 |       1.54              0.00 |      4.27      1.86
+   50  select  |   1.85      1.83 |       0.57              3.56 |     26.21      3.70
+   50  oracle  |   2.14      1.63 |       0.52              1.00 |     31.46      2.46
+   50  random  |   0.99      0.93 |       1.57              0.00 |      8.62      3.97
+  100  select  |   1.67      1.67 |       0.71              1.72 |     43.65      8.20
+  100  oracle  |   1.89      1.51 |       0.62              0.00 |     51.29      7.31
+  100  random  |   0.98      0.92 |       1.57              0.00 |     17.21      8.16
+  200  select  |   1.48      1.48 |       0.92              0.00 |     69.63     19.36
+  200  oracle  |   1.61      1.33 |       0.74              0.00 |     79.33     17.58
+  200  random  |   0.98      0.92 |       1.58              0.00 |     34.24     16.65
+  400  select  |   1.28      1.24 |       1.11              0.00 |    107.16     43.94
+  400  oracle  |   1.33      1.15 |       0.90              0.00 |    115.48     43.00
+  400  random  |   0.98      0.92 |       1.59              0.00 |     68.60     33.60
+DONE exit=0

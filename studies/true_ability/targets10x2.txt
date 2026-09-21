@@ -1,0 +1,28 @@
+10 models x 2 variants, 600 items, seed 5
+Spearman(observed full-suite acc, theta) = +1.000
+Spearman(observed full-suite acc, expected acc) = +1.000
+Spearman(theta, expected acc) = +1.000
+
+target: full-suite accuracy (what validate uses)   (places off, out of 10)
+    n | select | random | beats | Spearman | random
+   25 |   1.25 |   0.69 |   3% | +0.953   | +0.946
+   50 |   0.90 |   0.47 |   0% | +0.975   | +0.973
+  100 |   0.75 |   0.25 |   0% | +0.966   | +0.989
+  200 |   0.55 |   0.11 |   0% | +0.994   | +0.996
+  400 |   0.10 |   0.04 |  22% | +0.997   | +0.998
+
+target: true ability theta   (places off, out of 10)
+    n | select | random | beats | Spearman | random
+   25 |   1.25 |   0.69 |   3% | +0.953   | +0.946
+   50 |   0.90 |   0.47 |   0% | +0.975   | +0.973
+  100 |   0.75 |   0.25 |   0% | +0.966   | +0.989
+  200 |   0.55 |   0.11 |   0% | +0.994   | +0.996
+  400 |   0.10 |   0.04 |  22% | +0.997   | +0.998
+
+target: true expected accuracy (noise-free)   (places off, out of 10)
+    n | select | random | beats | Spearman | random
+   25 |   1.25 |   0.69 |   3% | +0.953   | +0.946
+   50 |   0.90 |   0.47 |   0% | +0.975   | +0.973
+  100 |   0.75 |   0.25 |   0% | +0.966   | +0.989
+  200 |   0.55 |   0.11 |   0% | +0.994   | +0.996
+  400 |   0.10 |   0.04 |  22% | +0.997   | +0.998

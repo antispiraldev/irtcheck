@@ -1,0 +1,20 @@
+10 models x 2 variants, 600 items, seed 5
+Spearman(observed full-suite accuracy, true theta) = +1.000
+
+target: true theta   places off, out of 10; 'beats' = share of 200 random draws
+        |  scored by accuracy               |  scored by MAP ability
+    n   |  select  random  beats  Spearman  |  select  random  beats  Spearman (random)
+    25  |    1.25    0.69    3%   +0.953  |    1.30    0.73    3%   +0.934 (+0.945)
+    50  |    0.90    0.47    0%   +0.975  |    0.90    0.52    3%   +0.975 (+0.971)
+   100  |    0.75    0.25    0%   +0.966  |    0.80    0.39    2%   +0.982 (+0.985)
+   200  |    0.55    0.11    0%   +0.994  |    0.60    0.26    1%   +0.991 (+0.993)
+   400  |    0.10    0.04   22%   +0.997  |    0.20    0.22   57%   +0.994 (+0.995)
+
+target: observed full-suite accuracy   places off, out of 10; 'beats' = share of 200 random draws
+        |  scored by accuracy               |  scored by MAP ability
+    n   |  select  random  beats  Spearman  |  select  random  beats  Spearman (random)
+    25  |    1.25    0.69    3%   +0.953  |    1.30    0.73    3%   +0.934 (+0.945)
+    50  |    0.90    0.47    0%   +0.975  |    0.90    0.52    3%   +0.975 (+0.971)
+   100  |    0.75    0.25    0%   +0.966  |    0.80    0.39    2%   +0.982 (+0.985)
+   200  |    0.55    0.11    0%   +0.994  |    0.60    0.26    1%   +0.991 (+0.993)
+   400  |    0.10    0.04   22%   +0.997  |    0.20    0.22   57%   +0.994 (+0.995)
