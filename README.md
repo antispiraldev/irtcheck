@@ -138,13 +138,15 @@ confident table here would be making most of it up. (At n=200 and 400 the
 held-out fits run out of confident items and `select` pads the rest — see
 [`select`](#select).)
 
-That last table is the headline, and it is not flattering: a held-out model,
-placed among the others on a set chosen by a fit that never saw it, lands
-closer to its full-suite place on a *random* set of the same size. Ten models
-is too few to choose items from — the fit's estimates of which items are sharp
-are too noisy — and on synthetic data choosing starts to pay at about fifty.
-Read [Does it actually work?](#does-it-actually-work) before using an anchor set
-as a stand-in for the suite.
+Those two tables are the headline, and the first is not flattering: a held-out
+model, scored among the others on a set chosen by a fit that never saw it,
+lands closer to its full-suite place on a *random* set of the same size. Ten
+models is few to choose items from, so the fit's estimates of which items are
+sharp are noisy; but most of that gap is the scoring, which re-scores every
+model on a set chosen from their own answers. The second table places the
+held-out model by its own ability against the fit instead, and there the chosen
+sets win. Read [Does it actually work?](#does-it-actually-work) before using an
+anchor set as a stand-in for the suite.
 
 Fitting is the slow part, so it is behind a cached artifact: `report`,
 `select` and `validate` read `suite.irt` and are instant (`validate` refits, so
@@ -198,9 +200,13 @@ to this tool. On real suites expect each to be no better.
   instead — `validate`'s second table — has choosing ahead at every model
   count, 81% of random draws at ten models against 3%.
 - **On HELM Lite at 95 models, choosing still lost from 100 items up**, which
-  the synthetic runs do not predict. The cause is not measured. `validate`
-  prints the random baseline beside every row so you can see which way your
-  suite goes. See [Does it actually work?](#does-it-actually-work).
+  the synthetic runs do not predict. Cut to one subject it wins — 94-100% of
+  random draws on MMLU and OpenBookQA — and splitting the set across scenarios
+  recovers most of the gap on the mixed suite, so a single ability scale across
+  eighteen subjects is what costs it. `select` does not allocate across
+  scenarios itself, and `validate` prints the random baseline beside every row
+  so you can see which way your suite goes. See
+  [Does it actually work?](#does-it-actually-work).
 - **`--adaptive` is declared and not implemented**, and exits saying so.
 - **`pip install irtcheck` on Linux pulls PyPI's default `torch`**, which
   bundles CUDA and is a download of several gigabytes. If you do not have a GPU,
@@ -560,10 +566,12 @@ Choosing the most informative items needs good estimates of which items are
 informative, and with few models the fit does not have them: it under-reads
 the sharpest items and over-reads some ordinary ones. On synthetic data,
 `select`'s sets placed models *worse* than random sets of the same size at 10
-and 25 models, and clearly better from 50
+and 25 models when every model is re-scored on the set, and clearly better from
+50
 ([`docs/validation.md` §5](https://github.com/antispiraldev/irtcheck/blob/master/docs/validation.md#5-choosing-items-against-sampling-them)).
-On the one real suite measured, HELM Lite, they lost at 95 models too, from
-100 items up, for reasons not yet measured.
+Placed by ability against the fit you already have, they win at every model
+count. On the one real suite measured, HELM Lite, they lost at 95 models from
+100 items up — on the mixed suite; on a single subject within it they won.
 
 So below about fifty models, use the fit for what it can say — `dead`,
 `inverted`, ceiling and floor, which items to remove — and draw the rest at
@@ -790,18 +798,21 @@ off at every size at twelve models while random falls from 1.34 to 0.19 —
 error that does not shrink as items are added is a bias, not noise.
 
 **At twelve models this is expected.** Synthetic data, where the answer is
-known, loses the same way at ten and twenty-five models, and for a measured
-reason: the fit's item estimates are too noisy to choose from. Classical
-item-rest correlation, which estimates from the same few models without the
-2PL, does no better.
+known, loses the same way at ten and twenty-five models, for two measured
+reasons: the fit's item estimates are noisy, and scoring every model on a set
+chosen from their own answers costs a chosen set more than a random one.
+Classical item-rest correlation, which estimates from the same few models
+without the 2PL, does no better.
 
-**At ninety-five it is not.** Synthetic data at a hundred models has `select`
-winning clearly up to 200 items; here it lost from 100. Something about the
-real suite costs selection at that count, and it is not measured. HELM Lite is
-maths, law and general knowledge while a 2PL has one dimension, which makes
-that a candidate, alongside guessing floors and label noise. Splitting the
-budget across the eighteen scenarios by size did not help at that count: 8.52
-places off at n=400, against `select`'s 8.40 and random's 3.50.
+**At ninety-five it is not, and cutting the suite apart says why.** Synthetic
+data at a hundred models has `select` winning clearly up to 200 items; here it
+lost from 100. Run on one subject at a time from the same matrix, choosing wins
+again: 100% of random draws on MMLU up to 100 items, 94% on OpenBookQA up to
+50. On the mixed suite with the scenarios kept separate — n split across them by
+size, chosen within each — it beats 80% and 92% of draws at 25 and 50 items
+where plain `select` beats 54% and 10%. So a single ability scale across
+eighteen subjects is what costs selection here, not the data being real.
+Removing the one scenario with a scoring artefact does not change it.
 
 This does not touch `report`: the flags, the `insufficient-data`/`dead`/
 `inverted` distinction and the per-scenario findings above are not scored by
