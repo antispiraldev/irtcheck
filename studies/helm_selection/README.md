@@ -52,13 +52,13 @@ run exactly as above:
 
 Share of random draws `select` beat, 95 models, 24 held out (`helm95_*.txt`):
 
-| n   | full suite (3,551) | MMLU, 5 subjects (567) | OpenBookQA (500) | citizenship (1,000) |
-| --- | ------------------ | ---------------------- | ---------------- | ------------------- |
-| 25  | 84%                | 100%                   | 94%              | 63%                 |
-| 50  | 38%                | 96%                    | 94%              | 6%                  |
-| 100 | 0%                 | 98%                    | 51%              | 0%                  |
-| 200 | 0%                 | 62%                    | 6%               | 0%                  |
-| 400 | 0%                 | 29%                    | 0%               | 0%                  |
+| n   | full suite (3,551) | no citizenship (2,551) | MMLU (567) | OpenBookQA (500) | citizenship (1,000) |
+| --- | ------------------ | ---------------------- | ---------- | ---------------- | ------------------- |
+| 25  | 84%                | 54%                    | 100%       | 94%              | 63%                 |
+| 50  | 38%                | 10%                    | 96%        | 94%              | 6%                  |
+| 100 | 0%                 | 0%                     | 98%        | 51%              | 0%                  |
+| 200 | 0%                 | 0%                     | 62%        | 6%               | 0%                  |
+| 400 | 0%                 | 0%                     | 29%        | 0%               | 0%                  |
 
 - **On MMLU and OpenBookQA, choosing wins** where it lost on the full suite:
   98-100% of draws on MMLU up to n=100, 94% on OpenBookQA up to n=50. At n=200
@@ -71,11 +71,21 @@ Share of random draws `select` beat, 95 models, 24 held out (`helm95_*.txt`):
   two-way question, four models far below chance, three of them otherwise strong — so its full-slice
   ranking is mostly noise plus that artefact, and the most informative items are
   the ones that separate the models the scorer misreads.
-- **So "several abilities" is not the whole story.** One subject can defeat
-  selection when its signal is an artefact, and a mixed-subject slice (MMLU is
-  five subjects) can reward it. Citizenship is 28% of the full suite; the direct
-  test is the full suite without it, `slice_no_citizenship`, whose output is
-  `helm95_no_citizenship.txt`.
+- **Removing citizenship does not fix the full suite.** `slice_no_citizenship`
+  (2,551 items, `helm95_no_citizenship.txt`) still has `select` losing: 54% of
+  draws beaten at n=25, 10% at n=50, 0% from n=100. So the artefact scenario is
+  not what costs selection on the whole suite either.
+- **But allocating across scenarios nearly rescues it there.** `per-scen`, which
+  splits n across scenarios in proportion to their size and picks the most
+  informative items within each, goes from 72%/49%/3% (full suite, n=25/50/100)
+  to 80%/92%/59% once citizenship is gone, while plain `select` stays behind
+  random. Choosing *within* a subject works — the single-subject runs say the
+  same — and choosing *across* subjects on one ability scale does not. That is
+  the several-abilities reading, now with the artefact scenario ruled out as the
+  cause.
+- **What is still unexplained** is why plain `select` loses so steadily on any
+  mixed-subject suite: its error is flat in n (10.9 to 7.7 places from 25 to 400
+  items) where random's falls from 11.0 to 3.0.
 
 One run per slice, holdout fits not bit-reproducible, and each slice's target is
 its own full-slice ranking, not the full suite's.
