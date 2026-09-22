@@ -29,10 +29,12 @@ from irtcheck.validate import (
 )
 
 # Below this many real models, choosing items lost to sampling them even on
-# synthetic data: the fit's item estimates are too noisy to choose from. Given
-# the true parameters the same selection won at every count. Measured, not
-# tuned: 10 and 25 models lost, 50 and 100 won clearly (docs/validation.md §5,
-# studies/true_ability/). The sweep has no point between 25 and 50.
+# synthetic data, *when every model is re-scored on the chosen set*. Given the
+# true parameters the same selection won at every count, and placing the
+# held-out model by ability — which leaves the other models' places alone —
+# wins at every count too. Measured, not tuned: 10 and 25 models lost, 50 and
+# 100 won clearly (docs/validation.md §5, studies/true_ability/). The sweep has
+# no point between 25 and 50.
 SELECTION_NEEDS_MODELS = 50
 
 
@@ -40,15 +42,31 @@ def why_random_wins(n_models: int) -> str:
     """The reason printed when random sets place held-out models as well or better."""
     if n_models < SELECTION_NEEDS_MODELS:
         return (
-            f"With {n_models} models the fit's item estimates are too noisy to choose from: "
-            "on synthetic data, where the truth is known, choosing beat sampling only from "
-            f"about {SELECTION_NEEDS_MODELS} models. Drop the items `report` flags and draw "
+            f"With {n_models} models two things are in play. The fit's item estimates are noisy — "
+            f"on synthetic data, scored this way, choosing beat sampling only from about "
+            f"{SELECTION_NEEDS_MODELS} models. And this table re-scores every model on a set "
+            "chosen from their own answers, which costs a chosen set more than a random one; the "
+            "ability table below does not, and on synthetic data that is the larger part. If you "
+            "compare models by plain accuracy on the set, drop the items `report` flags and draw "
             "the rest at random."
         )
     return (
         f"At {n_models} models synthetic data has choosing ahead, so this is likely "
         "something about this suite — it happened on HELM Lite at 95 models, and the cause "
         "is not measured. A random draw of the unflagged items is the safer set here."
+    )
+
+
+def ability_note(losing: list[tuple[int, float]]) -> str:
+    """What the ability table says about the sizes where accuracy scoring lost."""
+    won = [f"n={size} ({share:.0%})" for size, share in losing if share == share and share >= 0.5]
+    if not won:
+        return ""
+    return (
+        " Placed by ability instead, the same sets beat most random draws at "
+        + ", ".join(won)
+        + ": scoring every model on a set chosen from their own answers is part of what the "
+        "first table measures."
     )
 
 
@@ -107,7 +125,9 @@ def _places(value: float) -> str:
 def _render(out: Console, report: ValidationReport) -> None:
     # Real models, not respondents: the count of things being ranked is what
     # makes or breaks a placement, and it is not the respondent count.
-    held = "" if len(report.model_ids) == report.n_models else f" · {len(report.model_ids)} held out"
+    held = (
+        "" if len(report.model_ids) == report.n_models else f" · {len(report.model_ids)} held out"
+    )
     out.print(
         f"[bold]Leave-one-model-out[/bold] · {report.n_models} models{held} · "
         f"{report.n_items} items · {report.n_respondents} respondents "
@@ -147,14 +167,44 @@ def _render(out: Console, report: ValidationReport) -> None:
         "is the share of those draws the anchor set placed models better than. Spearman "
         "compares the held-out models' places with their full-suite places."
     )
-    losing = [r.size for r in report.results if r.beats_random == r.beats_random and r.beats_random < 0.5]
+    losing = [
+        r.size for r in report.results if r.beats_random == r.beats_random and r.beats_random < 0.5
+    ]
     if losing:
         sizes = ", ".join(f"n={n}" for n in losing)
         out.print(
             f"[yellow]At {sizes}, random item sets placed held-out models as well or better.[/yellow] "
             f"{why_random_wins(report.n_models)} The per-item flags from `report` do not "
             "depend on this."
+            + ability_note(
+                [(r.size, r.ability_beats_random) for r in report.results if r.size in losing]
+            )
         )
+    ability = Table(title=None, header_style="bold")
+    ability.add_column("n", justify="right")
+    ability.add_column("places off", justify="right")
+    ability.add_column("random", justify="right")
+    ability.add_column("beats random", justify="right")
+    for result in report.results:
+        beats = result.ability_beats_random
+        share = "—" if beats != beats else f"{beats:.0%}"
+        if beats == beats and beats < 0.5:
+            share = f"[yellow]{share}[/yellow]"
+        ability.add_row(
+            str(result.size),
+            _places(result.mean_ability_error),
+            f"[dim]{_places(result.random_ability_error)}[/dim]",
+            share,
+        )
+    out.print("\n[bold]Placed by ability[/bold] — the same sets, scored the way you would use one")
+    out.print(ability)
+    out.print(
+        "Estimate the held-out model's ability from [bold]its own[/bold] answers to the set, using "
+        "the item parameters of the fit that chose it, and place it among the other models' "
+        "abilities in that same fit. Nothing about those models is recomputed on the set, so the "
+        "choice of items cannot flatter or distort what the held-out model is compared against."
+    )
+
     if any(r.short for r in report.results):
         out.print(
             "[yellow]*[/yellow] fewer items were available than requested, even after padding "
