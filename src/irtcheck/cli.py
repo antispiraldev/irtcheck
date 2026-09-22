@@ -207,7 +207,7 @@ def validate(
         int, typer.Option("--epochs", help="SVI steps per holdout refit.")
     ] = 2000,
 ) -> None:
-    """Leave-one-model-out: does a small anchor set reproduce the full-suite ranking?"""
+    """Leave-one-model-out: does an anchor set place a model it never saw better than random sets?"""
     from irtcheck.commands import validate as impl
 
     impl.run(artifact=artifact, sizes=sizes, as_json=as_json, seed=seed, epochs=epochs)
