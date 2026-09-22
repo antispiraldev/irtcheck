@@ -1,0 +1,9 @@
+25 models x 1 variants, 800 items, seed 0, 25 held out. Each held-out model is placed by the ability estimated from its own answers to the set, against the reference models' abilities in the same fit; 200 random sets per size.
+
+Places off vs the true ability ranking; 'beats' = share of random sets beaten
+    n |         select |  usable+random |  random
+   25 |    2.52    77% |    1.76   100% |    2.93
+   50 |    1.96    71% |    1.28   100% |    2.18
+  100 |    1.40    76% |    1.32    84% |    1.62
+  200 |    1.08    80% |    1.20    56% |    1.23
+  400 |    0.88    81% |    0.88    81% |    0.98
