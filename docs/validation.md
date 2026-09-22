@@ -6,13 +6,15 @@ CLI; nothing here is estimated or carried over from a paper.
 
 The short version, good news and bad news together:
 
-- **On synthetic data the pipeline is correct, and choosing items needs about
-  fifty models.** Parameters are recovered. Anchor sets chosen from the *true*
-  parameters beat random sets at every size; chosen from a fit, they lose below
-  roughly 25-50 models, because the fit's item estimates are too noisy to choose
-  from, and win clearly from 50 (§5). This is a check that the code does what
-  it says, because the items really were drawn from a 2PL. It is not a claim
-  about real suites.
+- **On synthetic data the pipeline is correct, and most of what looked like a
+  selection failure is the scoring.** Parameters are recovered. Anchor sets
+  chosen from the *true* parameters beat random sets at every size; chosen from
+  a fit and scored the way `validate` scores them — every model re-scored on the
+  set — they lose below roughly 25-50 models and win clearly from 50. But that
+  scoring re-scores the reference models on a set chosen from their own answers.
+  Score them on fresh responses instead, or place the new model by its ability
+  against the fit you already have, and choosing wins at every model count,
+  including ten (§5). It is not a claim about real suites.
 - **A real per-item response matrix exists and is public**, and the tool runs
   on it: HELM Lite's released per-instance predictions, 95 models × 3,551
   items, no authentication needed.
@@ -26,10 +28,12 @@ The short version, good news and bad news together:
   100 items up, random sets placed held-out models closer to their full-suite
   place than `select`'s sets did, at twelve models and at ninety-five — and
   classical item-rest correlation did no better. At twelve models that is what
-  the synthetic runs predict; at ninety-five it is not, so something about the
-  real suite is costing selection there, and what is not yet measured. This is
-  the most important finding on the page, and it changed what `validate`
-  measures and what the README says `select` is for.
+  the synthetic runs predict. At ninety-five it is not, and cutting the suite
+  into single subjects says why: on MMLU and OpenBookQA choosing wins, on the
+  mixed suite it loses, and splitting the set across scenarios recovers most of
+  the gap. One ability scale across eighteen subjects is what costs selection
+  there. This is the most important finding on the page, and it changed what
+  `validate` measures and what the README says `select` is for.
 - **The fitter is cross-checked against `mirt` and `py-irt`, and the check
   found a real bug.** Agreement with `mirt` 1.41 is Spearman 0.949 on
   discrimination and 0.9991 on difficulty. The bug was in the *intervals*
@@ -88,10 +92,14 @@ The fit: **9.7 s** on CPU (32-core x86-64, torch CPU wheel), 12,000 responses,
 
 Places off is out of ten. Held-out models land within about a place of where
 the full suite puts them — and a random set of the same size lands them
-closer, at every size. That is not a bug in the pipeline: at ten models the
-fit's item estimates are too noisy to choose from, and the same selection code
-given the true parameters places every held-out model exactly from 50 items.
-§5 has the measurements. At n=200 and n=400 the held-out fits run out of
+closer, at every size. That is not a bug in the pipeline. Two things produce
+it: at ten models the fit's item estimates are noisy, and this table re-scores
+every model on a set chosen from their own answers, which costs a chosen set
+more than a random one. The same selection code given the true parameters
+places every held-out model exactly from 50 items, and the second table
+`validate` prints — each held-out model placed by its own ability against the
+fit that chose the set — has these same sets beating 81% of random draws at
+n=25 rather than 3%. §5 has the measurements. At n=200 and n=400 the held-out fits run out of
 confident items and `select` pads the rest from `insufficient-data` items (§4).
 
 Until §5, this section showed a different table: each held-out model scored on
@@ -1106,8 +1114,8 @@ than noise.
 
 **It is not the 2PL in particular.** Item-rest correlation, which never touches
 the 2PL, plateaus the same way and is no better — both choose items from
-estimates made on the same few models, which the synthetic runs below find is
-what fails at twelve. **It is not only the scenario mix.**
+estimates made on the same few models, and are then scored on those same
+models, which the synthetic runs below find is what fails at twelve. **It is not only the scenario mix.**
 `select`'s 100-item sets at twelve models take 7% of their items from the
 LegalBench citizenship scenario, which is 28% of the suite, and splitting by
 scenario does help — 1.42 against 2.08 places at n=400 — but it stays far
@@ -1123,7 +1131,7 @@ Spearman rewards getting the order roughly right when every model is a place
 or two out; places off rewards landing close. From n=100 up random leads on
 both.
 
-### On synthetic data: it is the estimates, and more models fix them
+### On synthetic data: removing the candidates one at a time
 
 The obvious reading of the tables above was that HELM Lite is several subjects
 and a 2PL has one dimension. The README's own synthetic matrix — one dimension
@@ -1149,12 +1157,14 @@ does not. Measured against *true ability* instead, the result does not move:
 under a 2PL with positive slopes, true ability and noise-free expected accuracy
 rank models identically, and random still wins at 10 models and at 25.
 
-**Not the scoring.** Information-based selection is optimal for a set scored by
-estimated ability, and `validate` scores by plain accuracy. Re-scored by MAP
-ability with the held-out fit's item parameters — the `map_theta` `validate`
-carried before this section — `select` still lost at every size below 400, and
-random sets mostly got *worse*, because weighting by a noisy `a` adds error that
-counting does not.
+**Not the scoring rule, taken on its own.** Information-based selection is
+optimal for a set scored by estimated ability, and `validate` scores by plain
+accuracy. Re-scored by MAP ability with the held-out fit's item parameters —
+every model re-scored, as before — `select` still lost at every size below 400,
+and random sets mostly got *worse*, because weighting by a noisy `a` adds error
+that counting does not. What matters is not accuracy against ability but
+*which models get re-scored on the set at all*, which the subsection after next
+separates.
 
 **Not the objective.** An *oracle* — the same `select_item_ids` on the held-out
 fit with `a`, `b` and theta replaced by the truth — beat random at every size
@@ -1162,7 +1172,7 @@ at every model count tried, in 70-100% of draws. At ten models its 50-item
 sets placed every held-out model exactly. The information objective is right;
 what it is given is not.
 
-**It is the estimates.** At 25 models and 25 items: the items the oracle picks
+**The estimates are part of it.** At 25 models and 25 items: the items the oracle picks
 have true `a` 2.40 and are *fitted* at 1.41, so the fit passes over them; what
 it picks instead has true `a` 1.61, fitted at 1.86 — chosen partly for being
 over-read. And those sets leave about 7 of 25 models answering every item right
@@ -1183,12 +1193,99 @@ across the ability range:
 | 200 | 0%        | 31%       | 75%       | 86%        | 96% / 100%       |
 | 400 | 22%       | 16%       | 32%       | 58%        | 98% / 100%       |
 
-(The 10-model column is the README matrix, 600 items, seed 5.) From fifty
-models the over-reading is gone — picked items fitted at 1.98, truly 2.01 —
+(The 10-model column is the README matrix, 600 items, seed 5. Every cell here
+re-scores all models on the set; the next subsection is what happens when that
+stops.) From fifty models the over-reading is gone — picked items fitted at
+1.98, truly 2.01 —
 and at n=25 `select` places models nearly as well as the oracle, 3.96 against
 3.84 places off with random at 6.02. At n=400, half the suite, it is level with
 random and behind the oracle: once the good items are in, the fit ranks what
 is left less reliably than the truth does.
+
+### The protocol is a larger part of it than the estimates
+
+Everything above scores *every* model on the chosen set. That is what a user
+does with an anchor set, and it costs a chosen set something a random set never
+pays. A held-out fit chooses items from the other models' responses; an item
+looks informative when those answers happen to line up with their order. On the
+chosen items the reference models are therefore spread out by their own noise,
+while the held-out model, whose answers played no part in the choice, is not —
+so it is pulled toward the middle.
+
+Synthetic data can remove exactly that and change nothing else.
+[`studies/true_ability/fresh.py`](../studies/true_ability/fresh.py) chooses from
+the original responses, through the same cached holdout fits, and scores every
+model on a **fresh** draw of responses from the same true parameters. Share of
+random draws `select` beat, same responses -> fresh responses:
+
+| n   | 10 models  | 25 models   | 50 models   | 100 models   |
+| --- | ---------- | ----------- | ----------- | ------------ |
+| 25  | 3% -> 94%  | 38% -> 100% | 98% -> 100% | 100% -> 100% |
+| 50  | 0% -> 100% | 15% -> 92%  | 94% -> 100% | 100% -> 100% |
+| 100 | 0% -> 32%  | 46% -> 100% | 95% -> 98%  | 92% -> 100%  |
+| 200 | 0% -> 64%  | 31% -> 100% | 75% -> 94%  | 86% -> 100%  |
+| 400 | 22% -> 80% | 16% -> 96%  | 32% -> 98%  | 58% -> 91%   |
+
+**Most of the loss below fifty models is this, not estimation noise.** The
+estimates still cost something — at ten models and n=100 and above, fresh
+scoring does not rescue selection — and the oracle above still wins where the
+fit does not. But the ordering is the other way round from what this section
+used to say.
+
+It is not only an artefact of the measurement. A user who places a new model by
+its accuracy on the anchor set, against the accuracy of the models the set was
+chosen from, gets the same pull toward the middle; with deterministic decoding
+there is no fresh draw to take. What the user can do instead is place the new
+model by *ability*:
+[`studies/true_ability/placement.py`](../studies/true_ability/placement.py)
+estimates the held-out model's ability from its own answers to the set, with the
+item parameters of the fit that chose it, and places it among the other models'
+abilities **in that same fit** — the whole suite, never recomputed on the set.
+Places off against the true ranking, and the share of random sets beaten:
+
+| n   | 10 models  | 25 models  | 50 models   | 100 models  |
+| --- | ---------- | ---------- | ----------- | ----------- |
+| 25  | 0.50 · 81% | 2.52 · 77% | 3.08 · 100% | 5.04 · 100% |
+| 50  | 0.30 · 73% | 1.96 · 71% | 2.88 · 93%  | 4.08 · 100% |
+| 100 | 0.30 · 41% | 1.40 · 76% | 2.08 · 95%  | 3.64 · 99%  |
+| 200 | 0.20 · 31% | 1.08 · 80% | 1.80 · 75%  | 3.00 · 97%  |
+| 400 | 0.10 · 56% | 0.88 · 81% | 1.52 · 51%  | 2.64 · 83%  |
+
+**Choosing wins at every model count this way, including ten.** Placement is
+also more accurate in absolute terms for every selector, random included,
+because the reference models keep their full-suite places instead of being
+re-scored on a short set. `validate` now prints this placement as a second
+table beside the first, so the difference is visible on any suite rather than
+only here.
+
+Two things this does not settle: the item parameters used to estimate the new
+model's ability still come from the fit that chose the set, which no control
+here removes; and it is one suite and one fresh draw per column.
+
+### Three other selectors, and what the pool alone does
+
+[`studies/true_ability/alternatives.py`](../studies/true_ability/alternatives.py)
+scores, through the same loop and the same fits, the fixes this section used to
+list as untried:
+
+- **Filter, then sample** — drop `dead`, `inverted`, ceiling and floor, draw the
+  rest at random — is a random set: it beats 41-68% of plain random draws at
+  every size and model count. The filter removes too few items to move the
+  number, which is what §4 found for ceiling and floor alone. The README's
+  advice below fifty models is therefore free rather than better.
+- **Information averaged over the interval on `a`** is no fix. It is within a
+  few points of `select` up to n=100 and worse at n=200-400 from fifty models.
+  Averaging `a^2` adds `se^2`, which *favours* uncertain items — the opposite of
+  what the winner's curse calls for.
+- **Information at the interval's lower end** is mixed: it helps at 25 models
+  n=25 and at 100 models n=200-400, and hurts at 25 models n=50-100.
+- **`select`'s pool, drawn at random** (`usable+random`) separates the pool from
+  the ranking. At ten models it is *worse* than a plain random set — 3% of draws
+  beaten at n=100 — although its items carry about 56% more true information
+  each than the suite's. At 25 models it beats `select` at every size, and at 50
+  and 100 it beats plain random in 62-90% of draws. A pool chosen on the same
+  responses the models are then scored on is subject to the effect above, which
+  is how a more informative pool can place models worse.
 
 **The two scores disagree in between, and that reconciles §4.** At 25 models
 Spearman favours `select` (+0.886 against random's +0.828 at n=25, true
@@ -1198,23 +1295,65 @@ not measured; the models `select`'s small sets leave tied are a candidate.
 Neither score is wrong; places off is the one a user placing one new model
 experiences.
 
-### What that says about HELM
+### What that says about HELM, and what one subject at a time says
 
 The twelve-model HELM result is what the synthetic runs predict at that model
 count, and needs no appeal to the data being real. The ninety-five-model result
 is not: synthetic data at 100 models has `select` winning clearly up to n=200,
-and on HELM it lost from n=100 up. Something about the real suite costs
-selection there — the several-subjects reading is a candidate again, for that
-case only, alongside guessing floors and label noise that §2c lists. None is
-measured. A single-subject real suite, or HELM restricted to one scenario, is
-the test.
+and on HELM it lost from n=100 up.
+
+[`studies/helm_selection/slices.py`](../studies/helm_selection/slices.py) cuts
+the three largest single-subject groups out of the same 95-model matrix, and
+each is fitted and run exactly as the whole suite was. Share of random draws
+`select` beat, 24 models held out:
+
+| n   | full suite (3,551) | no citizenship (2,551) | MMLU (567) | OpenBookQA (500) | citizenship (1,000) |
+| --- | ------------------ | ---------------------- | ---------- | ---------------- | ------------------- |
+| 25  | 84%                | 54%                    | 100%       | 94%              | 63%                 |
+| 50  | 38%                | 10%                    | 96%        | 94%              | 6%                  |
+| 100 | 0%                 | 0%                     | 98%        | 51%              | 0%                  |
+| 200 | 0%                 | 0%                     | 62%        | 6%               | 0%                  |
+| 400 | 0%                 | 0%                     | 29%        | 0%               | 0%                  |
+
+**Within one subject, choosing wins.** On MMLU up to n=100 and on OpenBookQA up
+to n=50, which is what the synthetic runs predict at 95 models. At n=200 and 400
+these slices are 35-80% of their own suite, where a random set is nearly the
+whole thing and nothing beats it — synthetic data at 400 of 800 is level too.
+
+**Citizenship is the exception, and it is the scenario with the artefact.**
+`select` loses there and does not improve with n: 12.2-12.5 places off from 25
+items to 400 while random falls from 13.0 to 3.1, and item-rest correlation does
+better than both. This is the scenario of §2b — median accuracy 0.54 on a
+two-way question, four models far below chance because the scorer misreads their
+answers — so its ranking is mostly noise plus that artefact, and the most
+informative items are the ones separating the models the scorer misreads.
+
+**Removing it does not rescue the full suite**, so the artefact is not what
+costs selection overall: without citizenship, `select` still beats only 54% of
+draws at n=25 and 0% from n=100. But `per-scen`, which splits n across scenarios
+in proportion to their size and chooses within each, goes from 72%/49%/3% at
+n=25/50/100 on the full suite to **80%/92%/59%** without citizenship. Choosing
+*within* a subject works; choosing *across* subjects on one ability scale does
+not. That is the several-subjects reading, with the artefact scenario ruled out
+as the cause, and it is the first direct evidence for it on this data.
+
+What stays unexplained is why plain `select` loses so steadily on any
+mixed-subject suite: its error is flat in n — 10.9 to 7.7 places from 25 to 400
+items without citizenship — where random's falls from 11.0 to 3.0. The
+protocol effect measured above is small at 95 models, so it is not that either.
 
 ### What this changed
 
 - `validate` scores every model on one fixed set, prints random sets of the
   same size beside every row, and says so in yellow when choosing loses — with
-  a reason that depends on the model count: below fifty, the estimates; from
-  fifty, possibly the suite.
+  a reason that depends on the model count: below fifty, the estimates and the
+  scoring; from fifty, possibly the suite.
+- `validate` also prints a second table, **placed by ability**: the held-out
+  model's ability estimated from its own answers to the set, against the other
+  models' abilities in the fit that chose it. It is the placement that does not
+  re-score the models the set was chosen from, and on synthetic data choosing
+  beats random sets at every model count under it. Which table to read is a
+  question about how the set will be used, and both are in `--json`.
 - The README stops describing `select` as finding the smallest subset that
   reproduces your ranking. Below about fifty models, its use is removing items
   the fit can say something definite about — `dead`, `inverted`, ceiling and
@@ -1225,19 +1364,24 @@ the test.
 
 ### What it does not settle
 
-- **Why HELM loses at 95 models.** Not measured. A single-subject real suite,
-  or HELM restricted to one scenario, is the next thing to run.
+- **Why plain `select` loses on a mixed-subject suite at 95 models.** Choosing
+  within a subject works and per-scenario allocation nearly closes the gap, but
+  what exactly a single ability scale costs across subjects is not measured. A
+  second real multi-subject suite, and a 2PL fitted per scenario and combined,
+  are the next things to run.
+- **Whether `select` should allocate across scenarios itself.** `per-scen` lives
+  in the study script, not in the tool, and it is the selector that survived
+  this section best on real data.
 - **Where between 25 and 50 models selection starts to pay.** The sweep has no
   point in between, one seed per model count, and each count draws its own
   800-item suite, so the columns are not the same items. "About fifty" is the
-  resolution this supports.
-- **Selecting with the uncertainty in `a`.** The failure is choosing on point
-  estimates that are over- and under-read; averaging information over the fit's
-  interval on `a` instead of using its mean is the obvious fix and is not tried.
-- **Filter, then sample** — drop the flagged items and draw the rest at random
-  — was not scored. It is what the README now suggests in spirit, and the
-  §4 synthetic study found filtering ceiling and floor alone barely moves a
-  random set.
+  resolution this supports — and it is a statement about the accuracy protocol,
+  since the ability placement has choosing ahead at ten.
+- **Whether the ability placement holds on real data.** Every number for it here
+  is synthetic. HELM has no held-out responses beyond the matrix itself, so the
+  same run there is possible and has not been done.
+- **The item parameters are still shared** between choosing a set and scoring
+  the new model on it. Nothing here separates those two uses.
 - **Holdout fits are not bit-reproducible** across machines and thread counts;
   two runs of one twelve-model cell differed by 0.007 Spearman. The committed
   tables come from one set of cached fits.

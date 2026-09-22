@@ -1,0 +1,10 @@
+10 models x 2 variants, 600 items, seed 5, 10 held out; filter+random and usable+random averaged over 20 draws
+usable pool per holdout fit: 123-184 of 600 items (usable+random pads at random beyond it)
+
+Places off vs true theta, scored by accuracy; 'beats' = share of 200 random draws beaten
+    n |         select |  filter+random |  usable+random |  expected info |    lower bound |  random
+   25 |    1.25     3% |    0.76    44% |    0.79    40% |    1.20     4% |    0.90    17% |    0.69
+   50 |    0.90     0% |    0.51    41% |    0.65    21% |    0.95     0% |    1.00     0% |    0.47
+  100 |    0.75     0% |    0.23    55% |    0.57     3% |    0.75     0% |    0.80     0% |    0.25
+  200 |    0.55     0% |    0.06    68% |    0.40     1% |    0.60     0% |    0.40     1% |    0.11
+  400 |    0.10    22% |    0.03    54% |    0.09    28% |    0.20     2% |    0.00    70% |    0.04
