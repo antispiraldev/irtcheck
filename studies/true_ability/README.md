@@ -93,6 +93,47 @@ tested: placing the new model by ability estimated from its anchor responses
 against the reference models' *full-suite* ability, which never re-scores the
 reference models on the chosen items. One suite and one fresh draw per column.
 
+### Placing the new model by ability instead, against the fit you already have
+
+`placement.py` follows that through. A user with a fit of the models they have
+already run does not need to re-score those models on the anchor set: the fit
+gives both the item parameters and each reference model's ability over the whole
+suite. A new model can be placed by the ability estimated from its own answers
+to the set,
+
+    theta_hat(k) = argmax over theta of  log N(theta; 0, 1)
+                   + sum over i in S of  log P(y_ki | a_i, b_i, theta)
+    place(k)     = 1 + #{m != k : theta_m(fit) > theta_hat(k)}
+
+so nothing selection touched is re-scored. Random sets are placed the same way.
+Share of random sets beaten, and places off against the true ranking
+(`placement*.txt`, 200 random sets per size):
+
+| n   | 10 models   | 25 models   | 50 models   | 100 models  |
+| --- | ----------- | ----------- | ----------- | ----------- |
+| 25  | 0.50 · 81%  | 2.52 · 77%  | 3.08 · 100% | 5.04 · 100% |
+| 50  | 0.30 · 73%  | 1.96 · 71%  | 2.88 · 93%  | 4.08 · 100% |
+| 100 | 0.30 · 41%  | 1.40 · 76%  | 2.08 · 95%  | 3.64 · 99%  |
+| 200 | 0.20 · 31%  | 1.08 · 80%  | 1.80 · 75%  | 3.00 · 97%  |
+| 400 | 0.10 · 56%  | 0.88 · 81%  | 1.52 · 51%  | 2.64 · 83%  |
+
+**Choosing wins at every model count, including ten.** Against `validate`'s
+3%, 0%, 0% at 10 models and 38%, 15%, 46% at 25, this is 81%, 73%, 41% and
+77%, 71%, 76%. Placement is also more accurate in absolute terms for every
+selector, random included, because the reference models keep their full-suite
+places instead of being re-scored on a short set.
+
+So "below fifty models, do not choose, sample" is a statement about how
+`validate` scores an anchor set, not about selection. What it costs to choose
+on noisy estimates is real but much smaller than the protocol's own effect.
+`usable+random` behaves differently again: best of all at 10 and 25 models,
+behind `select` at 50 and 100.
+
+Caveats: one suite per model count; the item parameters used to estimate the
+new model's ability still come from the same fit that chose the set, which no
+synthetic control here removes; and `validate` does not offer this placement,
+so nothing in the shipped tool measures it yet.
+
 `diagnose.py` also reports what the chosen sets contain — true and fitted `a`,
 the spread of true difficulty, how many models answer every item right or
 every item wrong, and true test information — and, with `--holdouts`, runs the
