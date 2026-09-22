@@ -24,6 +24,18 @@ selection for reasons unrelated to ranking. A user scores every model on one
 fixed set; this is that. The re-estimated-ability columns existed to correct
 for sets differing in difficulty between holdouts, and went with the problem.
 
+**A model is placed two ways, and the difference is itself a finding.** The
+table above scores every model on the set. That is what a user does with an
+anchor set, and it has a cost nothing else here pays: the set was chosen from
+the other models' answers, so those models are spread out by their own noise
+while the held-out model is not, which pulls it toward the middle. The second
+placement avoids it — estimate the held-out model's ability from its own
+answers to the set with the item parameters of the fit that chose it, and place
+it among the other models' abilities in that same fit, which came from the whole
+suite and are not recomputed. On synthetic data choosing beats random sets at
+every model count that way, including ten, where the accuracy protocol has it
+losing badly (docs/validation.md §5, studies/true_ability/placement.py).
+
 **The random baseline is not optional, and it is the most important column.**
 Measured on HELM Lite (docs/validation.md §5), anchor sets chosen by the 2PL
 placed held-out models *worse* than random sets of the same size from 100
@@ -57,6 +69,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+from scipy.special import expit
 from scipy.stats import kendalltau, rankdata, spearmanr
 
 from irtcheck.artifact import IrtFit
@@ -76,6 +89,13 @@ MIN_MODELS = 3
 # Random sets per (holdout, size). Scoring a set is a column slice, so this is
 # cheap next to one fit; 200 puts the share-of-draws column within a few points.
 RANDOM_DRAWS = 200
+
+# Bisection bounds and steps for MAP ability. The score function is strictly
+# decreasing in theta, so bisection cannot miss the root; 60 halvings of
+# [-6, 6] land far inside float precision, and the prior makes +-6 unreachable
+# in practice anyway.
+THETA_BOUND = 6.0
+THETA_STEPS = 60
 
 FitFn = Callable[[ResponseMatrix], IrtFit]
 SelectFn = Callable[[IrtFit, int], Sequence[str]]
@@ -119,6 +139,28 @@ class AccuracyTable:
     def columns(self, item_ids: Sequence[str]) -> np.ndarray:
         return np.array([self.column[i] for i in dict.fromkeys(item_ids)], dtype=np.int64)
 
+    def responses(self, model_id: str, cols: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """(correct, answered) for one model's respondents over `cols`, one row each.
+
+        Ability is estimated per respondent and averaged, the same aggregation
+        `accuracy` uses, so prompt variants of one model do not become several
+        models here either.
+        """
+        rows = np.flatnonzero(self._owner == self.model_ids.index(model_id))
+        grid = np.ix_(rows, cols)
+        return self._correct[grid].astype(float), self._answered[grid] > 0
+
+    def response_sets(self, model_id: str, col_sets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """(correct, answered) of shape (respondents, sets, items), for many sets at once.
+
+        The random baseline needs one ability per draw per respondent, and
+        gathering them in one pass keeps two hundred draws a matrix operation
+        rather than two hundred python calls.
+        """
+        rows = np.flatnonzero(self._owner == self.model_ids.index(model_id))
+        picked = (rows[:, None, None], col_sets[None, :, :])
+        return self._correct[picked].astype(float), self._answered[picked] > 0
+
     def accuracy(self, cols: np.ndarray) -> np.ndarray:
         """Per-model accuracy on `cols`, in `model_ids` order."""
         answered = self._answered[:, cols].sum(axis=1)
@@ -130,6 +172,84 @@ class AccuracyTable:
         count = np.bincount(self._owner[ok], minlength=models)
         with np.errstate(invalid="ignore", divide="ignore"):
             return np.where(count > 0, total / np.maximum(count, 1), np.nan)
+
+
+# -- placing a model by ability, without re-scoring the models it is placed among ----
+
+
+def map_theta(a: np.ndarray, b: np.ndarray, correct: np.ndarray) -> np.ndarray:
+    """MAP ability under `theta ~ N(0, 1)`, one per row of `correct`.
+
+    Rows are independent response vectors over the same items per row, so `a`,
+    `b` and `correct` all have shape (rows, items). The derivative of the log
+    posterior,
+
+        -theta + sum_i a_i (y_i - P_i(theta))
+
+    is strictly decreasing in theta whatever the signs of `a`, because its own
+    derivative is `-1 - sum_i a_i^2 P_i (1 - P_i)`. So a bisection is exact
+    rather than a search, and an all-right or all-wrong row lands at a finite
+    ability instead of running off — which is the point of keeping the prior.
+    """
+    rows = correct.shape[0]
+    lo = np.full(rows, -THETA_BOUND)
+    hi = np.full(rows, THETA_BOUND)
+    for _ in range(THETA_STEPS):
+        mid = (lo + hi) / 2
+        slope = -mid + np.sum(a * (correct - expit(a * (mid[:, None] - b))), axis=1)
+        rising = slope > 0
+        lo = np.where(rising, mid, lo)
+        hi = np.where(rising, hi, mid)
+    return (lo + hi) / 2
+
+
+def estimate_ability(
+    a: np.ndarray, b: np.ndarray, correct: np.ndarray, answered: np.ndarray
+) -> np.ndarray:
+    """One ability per set, from a model's own answers to it.
+
+    `a` and `b` are the item parameters of each set, shape (sets, items), and
+    `correct`/`answered` are that model's responses, shape (respondents, sets,
+    items). An unanswered item is given a slope of zero, which removes it from
+    the score exactly rather than approximately. Abilities are averaged over
+    the respondents that answered anything.
+    """
+    respondents, sets, items = correct.shape
+    slopes = np.broadcast_to(a, (respondents, sets, items)) * answered
+    difficulty = np.broadcast_to(b, (respondents, sets, items))
+    theta = map_theta(
+        slopes.reshape(-1, items),
+        difficulty.reshape(-1, items),
+        (correct * answered).reshape(-1, items),
+    ).reshape(respondents, sets)
+    seen = answered.any(axis=2)
+    counted = seen.sum(axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(counted > 0, (theta * seen).sum(axis=0) / np.maximum(counted, 1), np.nan)
+
+
+def model_abilities(fit: IrtFit) -> dict[str, float]:
+    """Each model's ability in a fit, averaged over the respondents it derives from."""
+    theta = np.asarray(fit.theta.mean, dtype=float)
+    per: dict[str, list[float]] = {}
+    for value, source in zip(theta, fit.derives_from, strict=True):
+        per.setdefault(source, []).append(float(value))
+    return {model_id: float(np.mean(values)) for model_id, values in per.items()}
+
+
+def ability_places(theta_hat: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """Where each estimated ability lands among `reference`, 1 = best, ties shared.
+
+    `reference` holds the other models' abilities from the fit that chose the
+    set — the fit the user already has, over the whole suite. Nothing about
+    those models is recomputed on the anchor set, so the selection that chose
+    it cannot flatter or distort what the new model is compared against. That
+    is the difference from the accuracy protocol, and it is measurable: see
+    docs/validation.md section 5.
+    """
+    above = (reference[None, :] > theta_hat[:, None]).sum(axis=1)
+    ties = (reference[None, :] == theta_hat[:, None]).sum(axis=1)
+    return 1.0 + above + ties / 2
 
 
 def placement(scores: np.ndarray, truth: np.ndarray, k: int) -> tuple[float, float]:
@@ -169,6 +289,51 @@ def full_suite_accuracy(matrix: ResponseMatrix) -> dict[str, float]:
 # -- the sweep ----------------------------------------------------------------
 
 
+def _place_by_ability(
+    table: AccuracyTable,
+    model_id: str,
+    a: np.ndarray,
+    b: np.ndarray,
+    cols: np.ndarray,
+    reference: np.ndarray,
+) -> tuple[float, float]:
+    """(ability, place) of one model on one set, from its own answers alone."""
+    correct, answered = table.response_sets(model_id, cols[None, :])
+    theta = estimate_ability(a[None, :], b[None, :], correct, answered)
+    if not np.isfinite(theta[0]):
+        return float("nan"), float("nan")
+    return float(theta[0]), float(ability_places(theta, reference)[0])
+
+
+def _random_ability_errors(
+    table: AccuracyTable,
+    model_id: str,
+    item_a: np.ndarray,
+    item_b: np.ndarray,
+    draw_cols: Sequence[np.ndarray],
+    draw_at: Sequence[np.ndarray],
+    reference: np.ndarray,
+    true_place: float,
+) -> np.ndarray:
+    """Ability placement error of every random draw, in one batch."""
+    if not draw_cols or draw_cols[0].size == 0 or not np.isfinite(true_place):
+        return np.full(len(draw_cols), float("nan"))
+    col_sets = np.stack([np.asarray(c, dtype=np.int64) for c in draw_cols])
+    at_sets = np.stack([np.asarray(p, dtype=np.int64) for p in draw_at])
+    correct, answered = table.response_sets(model_id, col_sets)
+    theta = estimate_ability(item_a[at_sets], item_b[at_sets], correct, answered)
+    places = ability_places(theta, reference)
+    return np.where(np.isfinite(theta), np.abs(places - true_place), np.nan)
+
+
+def _beats(error: float, draws: Sequence[float]) -> float:
+    """Share of random draws a selector's mean error is smaller than; ties count half."""
+    if not draws or not np.isfinite(error):
+        return float("nan")
+    values = np.asarray(draws, dtype=float)
+    return float(np.mean(values > error) + 0.5 * np.mean(values == error))
+
+
 def _correlate(x: Sequence[float], y: Sequence[float]) -> tuple[float, float]:
     """(Spearman, Kendall tau), NaN when the inputs cannot support either."""
     xs = np.asarray(x, dtype=float)
@@ -194,10 +359,17 @@ class ModelScore:
     n_items: int  # the anchor set's size for this holdout
     n_respondents: int
     random_error: float  # mean |place error| over random sets of n_items
+    ability: float = float("nan")  # MAP ability from this model's answers to the set
+    ability_place: float = float("nan")  # where that lands among the fit's other models
+    random_ability_error: float = float("nan")
 
     @property
     def error(self) -> float:
         return abs(self.anchor_place - self.true_place)
+
+    @property
+    def ability_error(self) -> float:
+        return abs(self.ability_place - self.true_place)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -208,6 +380,10 @@ class ModelScore:
             "anchor_place": self.anchor_place,
             "place_error": self.error,
             "random_place_error": self.random_error,
+            "ability": self.ability,
+            "ability_place": self.ability_place,
+            "ability_place_error": self.ability_error,
+            "random_ability_place_error": self.random_ability_error,
             "n_items": self.n_items,
             "n_respondents": self.n_respondents,
         }
@@ -220,6 +396,7 @@ class SizeResult:
     size: int
     models: list[ModelScore]
     random_errors: list[float]  # mean place error of each random draw, over holdouts
+    random_ability_errors: list[float] = field(default_factory=list)
     random_spearman: float = float("nan")  # mean over draws
     spearman: float = float("nan")  # held-out places against full-suite places
     kendall: float = float("nan")
@@ -253,16 +430,28 @@ class SizeResult:
         return float(np.mean(self.random_errors)) if self.random_errors else float("nan")
 
     @property
+    def mean_ability_error(self) -> float:
+        """The same headline for the other way of placing a model: by its ability."""
+        errors = [m.ability_error for m in self.models if np.isfinite(m.ability_error)]
+        return float(np.mean(errors)) if errors else float("nan")
+
+    @property
+    def random_ability_error(self) -> float:
+        draws = self.random_ability_errors
+        return float(np.mean(draws)) if draws else float("nan")
+
+    @property
+    def ability_beats_random(self) -> float:
+        return _beats(self.mean_ability_error, self.random_ability_errors)
+
+    @property
     def beats_random(self) -> float:
         """Share of random draws whose mean error is larger than the anchor set's.
 
         Ties count half, so a size where every set places every model exactly
         reads 50% rather than 0% or 100%.
         """
-        if not self.random_errors or not np.isfinite(self.mean_error):
-            return float("nan")
-        draws = np.asarray(self.random_errors)
-        return float(np.mean(draws > self.mean_error) + 0.5 * np.mean(draws == self.mean_error))
+        return _beats(self.mean_error, self.random_errors)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -271,6 +460,9 @@ class SizeResult:
             "place_error": self.mean_error,
             "random_place_error": self.random_error,
             "beats_random": self.beats_random,
+            "ability_place_error": self.mean_ability_error,
+            "random_ability_place_error": self.random_ability_error,
+            "ability_beats_random": self.ability_beats_random,
             "spearman": self.spearman,
             "kendall": self.kendall,
             "random_spearman": self.random_spearman,
@@ -371,6 +563,8 @@ def leave_one_model_out(
     draw_errors = {n: np.zeros(random_draws) for n in wanted}
     draw_counts = {n: np.zeros(random_draws) for n in wanted}
     draw_places = {n: [[] for _ in range(random_draws)] for n in wanted}
+    draw_ability = {n: np.zeros(random_draws) for n in wanted}
+    draw_ability_counts = {n: np.zeros(random_draws) for n in wanted}
 
     for position, model_id in enumerate(held):
         if on_model is not None:
@@ -379,11 +573,23 @@ def leave_one_model_out(
         # derived from it goes too. Never filter respondent_ids by hand.
         fit = fit_fn(matrix.drop_model(model_id))
         known = set(fit.item_ids)
-        answered = [
-            table.column[i]
-            for i, count in zip(fit.item_ids, fit.n_resp, strict=True)
+        # Two parallel indexes for the same items: into the response matrix,
+        # and into the fit whose parameters place the held-out model.
+        answered_pairs = [
+            (table.column[i], position)
+            for position, (i, count) in enumerate(zip(fit.item_ids, fit.n_resp, strict=True))
             if count > 0 and i in table.column
         ]
+        answered = [column for column, _ in answered_pairs]
+        answered_at = np.array([position for _, position in answered_pairs], dtype=np.int64)
+        answered_cols = np.array(answered, dtype=np.int64)
+        item_a = np.asarray(fit.a.mean, dtype=float)
+        item_b = np.asarray(fit.b.mean, dtype=float)
+        # The reference the held-out model is placed against: the other models'
+        # abilities in this fit, over the whole suite, never re-scored on the
+        # anchor set.
+        reference = np.array(sorted(model_abilities(fit).values()), dtype=float)
+        at = {item: position for position, item in enumerate(fit.item_ids)}
         k = index[model_id]
         for n in wanted:
             item_ids = list(select_fn(fit, n))
@@ -393,14 +599,28 @@ def leave_one_model_out(
                     f"the anchor set names {len(missing)} item(s) the fit does not know, "
                     f"e.g. {missing[:3]}. select_fn must return ids from the fit it was given."
                 )
+            unique_ids = list(dict.fromkeys(item_ids))
             cols = table.columns(item_ids)
             scored = table.accuracy(cols)
             anchor_place, true_place = placement(scored, truth, k)
+            ability, ability_place = _place_by_ability(
+                table,
+                model_id,
+                item_a[[at[i] for i in unique_ids]],
+                item_b[[at[i] for i in unique_ids]],
+                cols,
+                reference,
+            )
 
             errors = []
+            draw_cols = []
+            draw_at = []
             for d in range(random_draws):
                 size = min(len(cols), len(answered))
-                pick = rng.choice(answered, size=size, replace=False) if size else cols[:0]
+                taken = rng.choice(len(answered), size=size, replace=False) if size else []
+                pick = answered_cols[taken] if size else cols[:0]
+                draw_cols.append(pick)
+                draw_at.append(answered_at[taken] if size else np.array([], dtype=np.int64))
                 place, true = placement(table.accuracy(np.asarray(pick)), truth, k)
                 error = abs(place - true)
                 errors.append(error)
@@ -408,6 +628,14 @@ def leave_one_model_out(
                     draw_errors[n][d] += error
                     draw_counts[n][d] += 1
                     draw_places[n][d].append((true, place))
+            ability_errors = _random_ability_errors(
+                table, model_id, item_a, item_b, draw_cols, draw_at, reference, true_place
+            )
+            for d, error in enumerate(ability_errors):
+                if np.isfinite(error):
+                    draw_ability[n][d] += error
+                    draw_ability_counts[n][d] += 1
+            finite_ability = [e for e in ability_errors if np.isfinite(e)]
             finite = [e for e in errors if np.isfinite(e)]
             scores[n].append(
                 ModelScore(
@@ -419,6 +647,11 @@ def leave_one_model_out(
                     n_items=len(cols),
                     n_respondents=len(_model_respondents(matrix, model_id)),
                     random_error=float(np.mean(finite)) if finite else float("nan"),
+                    ability=ability,
+                    ability_place=ability_place,
+                    random_ability_error=(
+                        float(np.mean(finite_ability)) if finite_ability else float("nan")
+                    ),
                 )
             )
 
@@ -426,6 +659,7 @@ def leave_one_model_out(
     for n in wanted:
         with np.errstate(invalid="ignore", divide="ignore"):
             per_draw = draw_errors[n] / draw_counts[n]
+            per_draw_ability = draw_ability[n] / draw_ability_counts[n]
         rhos = [
             _correlate([t for t, _ in places], [p for _, p in places])[0]
             for places in draw_places[n]
@@ -437,6 +671,7 @@ def leave_one_model_out(
                 size=n,
                 models=scores[n],
                 random_errors=[float(e) for e in per_draw if np.isfinite(e)],
+                random_ability_errors=[float(e) for e in per_draw_ability if np.isfinite(e)],
                 random_spearman=float(np.mean(finite_rhos)) if finite_rhos else float("nan"),
             )
         )

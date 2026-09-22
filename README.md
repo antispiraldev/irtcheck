@@ -114,9 +114,20 @@ Leave-one-model-out · 10 models · 600 items · 20 respondents (key model_id+pr
   200    200        0.55    0.11            0%    +0.994  +0.996
   400    400        0.10    0.04           22%    +0.997  +0.998
 At n=25, n=50, n=100, n=200, n=400, random item sets placed held-out models as well or better.
-With 10 models the fit's item estimates are too noisy to choose from: on synthetic data, where
-the truth is known, choosing beat sampling only from about 50 models. Drop the items `report`
-flags and draw the rest at random.
+With 10 models two things are in play. The fit's item estimates are noisy — on synthetic data,
+scored this way, choosing beat sampling only from about 50 models. And this table re-scores every
+model on a set chosen from their own answers, which costs a chosen set more than a random one; the
+ability table below does not, and on synthetic data that is the larger part. If you compare models
+by plain accuracy on the set, drop the items `report` flags and draw the rest at random. Placed by
+ability instead, the same sets beat most random draws at n=25 (81%), n=50 (73%), n=400 (56%).
+
+Placed by ability — the same sets, scored the way you would use one
+    n  places off  random  beats random
+   25        0.50    0.69           81%
+   50        0.30    0.41           73%
+  100        0.30    0.28           41%
+  200        0.20    0.15           31%
+  400        0.10    0.11           56%
 ```
 
 **Ten models is below where this tool can rank items, and it says so.** That is
@@ -177,11 +188,15 @@ to this tool. On real suites expect each to be no better.
   beat a random draw by 0.04 Spearman on average. It was level with classical
   item-rest correlation, not better, and a set that is mostly padding is only
   as good as the point estimates behind it.
-- **Below about fifty models, a random set beats `select`'s.** On synthetic
-  data, where the truth is known, sets chosen from the fit placed held-out
-  models worse than random sets at 10 and 25 models and clearly better from 50;
-  given the true item parameters the same code wins at every count. The fit's
-  item estimates are the limit, and more models fix them.
+- **Below about fifty models, a random set beats `select`'s — when every model
+  is re-scored on the set.** On synthetic data, sets chosen from the fit placed
+  held-out models worse than random sets at 10 and 25 models and clearly better
+  from 50. Two things cause it, and the smaller one is the fit's noisy item
+  estimates: given the true item parameters the same code wins at every count.
+  The larger is the scoring itself, since the other models are re-scored on a
+  set chosen from their own answers. Placing the held-out model by ability
+  instead — `validate`'s second table — has choosing ahead at every model
+  count, 81% of random draws at ten models against 3%.
 - **On HELM Lite at 95 models, choosing still lost from 100 items up**, which
   the synthetic runs do not predict. The cause is not measured. `validate`
   prints the random baseline beside every row so you can see which way your
@@ -615,6 +630,19 @@ random sets won. When they do, `validate` says so in yellow. The draws are
 seeded, so one artifact and one set of flags give the same output. A Spearman
 between held-out and full-suite places is printed too, with its own random
 column.
+
+**The same sets are placed a second way, by ability.** Scoring every model on
+the anchor set has a cost: the set was chosen from the other models' answers, so
+those models are spread out by their own noise while the held-out model is not,
+which pulls it toward the middle. The second table avoids that — estimate the
+held-out model's ability from *its own* answers to the set, using the item
+parameters of the fit that chose it, and place it among the other models'
+abilities in that same fit, which came from the whole suite and are not
+recomputed. On synthetic data the difference is large: at ten models, sets that
+beat 3% of random draws when every model is re-scored beat 81% placed this way.
+Which table to read is a question about how you will use the set. If you will
+compare a new model's accuracy on it against the accuracy of models you already
+ran, the first one is your case.
 
 **Holding out a model holds out every pseudo-respondent derived from it.** With
 `--respondent-key model_id,prompt_variant` one model is several respondents;

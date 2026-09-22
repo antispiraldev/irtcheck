@@ -29,10 +29,14 @@ from irtcheck.select import select_item_ids
 from irtcheck.synth import SyntheticTruth, synthetic_fit, synthetic_matrix
 from irtcheck.validate import (
     DEFAULT_SIZES,
+    THETA_BOUND,
     AccuracyTable,
     ValidateError,
+    ability_places,
+    estimate_ability,
     full_suite_accuracy,
     leave_one_model_out,
+    map_theta,
     parse_sizes,
     placement,
 )
@@ -502,3 +506,92 @@ def test_the_reason_random_wins_depends_on_the_model_count():
     assert "estimates" in few and "at random" in few
     assert "mix" not in few
     assert "this suite" in many and "estimates" not in many
+
+
+# -- placing a model by ability ----------------------------------------------
+
+
+def test_map_theta_finds_the_root_of_the_score_function():
+    rng = np.random.default_rng(0)
+    a = rng.lognormal(0.0, 0.4, size=(3, 25))
+    b = rng.normal(0.0, 1.0, size=(3, 25))
+    correct = (rng.random((3, 25)) < 0.5).astype(float)
+    theta = map_theta(a, b, correct)
+    score = -theta + np.sum(a * (correct - 1 / (1 + np.exp(-a * (theta[:, None] - b)))), axis=1)
+    assert np.allclose(score, 0.0, atol=1e-6)
+
+
+def test_map_theta_is_pulled_back_by_the_prior_when_every_answer_is_right():
+    a = np.full((1, 10), 1.5)
+    b = np.zeros((1, 10))
+    assert 0.0 < map_theta(a, b, np.ones((1, 10)))[0] < THETA_BOUND
+    assert -THETA_BOUND < map_theta(a, b, np.zeros((1, 10)))[0] < 0.0
+
+
+def test_a_stronger_model_gets_a_higher_ability_on_the_same_items():
+    matrix, truth = synthetic_matrix(n_models=8, n_items=120, seed=11)
+    table = AccuracyTable(matrix)
+    fit = truth_fit_fn(truth)(matrix)
+    cols = np.arange(120)
+    a = np.asarray(fit.a.mean)[None, :]
+    b = np.asarray(fit.b.mean)[None, :]
+    by_accuracy = sorted(full_suite_accuracy(matrix).items(), key=lambda kv: kv[1])
+    weakest, strongest = by_accuracy[0][0], by_accuracy[-1][0]
+    abilities = {}
+    for model_id in (weakest, strongest):
+        correct, answered = table.response_sets(model_id, cols[None, :])
+        abilities[model_id] = estimate_ability(a, b, correct, answered)[0]
+    assert abilities[strongest] > abilities[weakest]
+
+
+def test_ability_places_count_the_models_above_and_share_ties():
+    reference = np.array([-1.0, 0.0, 1.0])
+    assert list(ability_places(np.array([2.0]), reference)) == [1.0]
+    assert list(ability_places(np.array([-2.0]), reference)) == [4.0]
+    assert list(ability_places(np.array([0.0]), reference)) == [2.5]
+
+
+def test_the_report_places_every_held_out_model_both_ways(curve):
+    for result in curve.results:
+        assert np.isfinite(result.mean_ability_error)
+        assert np.isfinite(result.random_ability_error)
+        assert 0.0 <= result.ability_beats_random <= 1.0
+        for model in result.models:
+            assert np.isfinite(model.ability)
+            assert 1.0 <= model.ability_place <= len(curve.model_ids)
+
+
+def test_the_reported_ability_comes_from_the_models_own_answers_alone():
+    """Recompute one holdout's ability by hand: nothing else may enter it."""
+    matrix, truth = synthetic_matrix(n_models=8, n_items=200, seed=7)
+    held = sorted(set(matrix.derives_from))[3]
+    report = leave_one_model_out(
+        matrix, fit_fn=truth_fit_fn(truth), sizes=(20,), holdouts=[held], random_draws=0
+    )
+    scored = report.results[0].models[0]
+    fit = truth_fit_fn(truth)(matrix.drop_model(held))
+    item_ids = list(select_item_ids(fit, 20))
+    at = {item: i for i, item in enumerate(fit.item_ids)}
+    a = np.asarray(fit.a.mean)[[at[i] for i in item_ids]][None, :]
+    b = np.asarray(fit.b.mean)[[at[i] for i in item_ids]][None, :]
+    table = AccuracyTable(matrix)
+    correct, answered = table.response_sets(held, table.columns(item_ids)[None, :])
+    assert scored.ability == pytest.approx(estimate_ability(a, b, correct, answered)[0])
+
+
+def test_json_carries_both_placements(curve):
+    payload = json.loads(json.dumps(curve.to_dict()))
+    size = payload["sizes"][0]
+    assert {"ability_place_error", "random_ability_place_error", "ability_beats_random"} <= set(
+        size
+    )
+    assert "ability_place" in size["models"][0]
+
+
+def test_the_ability_note_names_only_the_sizes_where_ability_won():
+    from irtcheck.commands.validate import ability_note
+
+    assert ability_note([]) == ""
+    assert ability_note([(25, 0.2), (50, 0.1)]) == ""
+    note = ability_note([(25, 0.9), (50, 0.2)])
+    assert "n=25 (90%)" in note and "n=50" not in note
