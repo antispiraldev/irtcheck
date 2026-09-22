@@ -36,6 +36,60 @@ model on it by plain accuracy, and measure how far k lands from its full-suite
 place. The last table is the protocol `validate` used before this study — each
 held-out model scored on its own set — kept so the old numbers can be traced.
 
+## One subject at a time
+
+The full suite at 95 models has `select` losing from 100 items up, where
+synthetic data says it should win. The candidate explanation was that HELM Lite
+measures several abilities and a 2PL assumes one. `slices.py` cuts the three
+largest single-subject groups out of the same matrix, and each is fitted and
+run exactly as above:
+
+    python studies/helm_selection/slices.py -i helm_responses.jsonl
+    irtcheck fit slice_mmlu.jsonl -o slice_mmlu.irt      # likewise openbookqa, citizenship
+    PYTHONPATH=src .venv/bin/python studies/helm_selection/run.py \
+        --fit slice_mmlu.irt --cache ~/.cache/irtcheck-helm-data/cache_mmlu \
+        --holdouts 24 --workers 3 > studies/helm_selection/helm95_mmlu.txt
+
+Share of random draws `select` beat, 95 models, 24 held out (`helm95_*.txt`):
+
+| n   | full suite (3,551) | no citizenship (2,551) | MMLU (567) | OpenBookQA (500) | citizenship (1,000) |
+| --- | ------------------ | ---------------------- | ---------- | ---------------- | ------------------- |
+| 25  | 84%                | 54%                    | 100%       | 94%              | 63%                 |
+| 50  | 38%                | 10%                    | 96%        | 94%              | 6%                  |
+| 100 | 0%                 | 0%                     | 98%        | 51%              | 0%                  |
+| 200 | 0%                 | 0%                     | 62%        | 6%               | 0%                  |
+| 400 | 0%                 | 0%                     | 29%        | 0%               | 0%                  |
+
+- **On MMLU and OpenBookQA, choosing wins** where it lost on the full suite:
+  98-100% of draws on MMLU up to n=100, 94% on OpenBookQA up to n=50. At n=200
+  and 400 these slices are 35-80% of their suite, where a random set is nearly
+  the whole thing; synthetic data at 400 of 800 is level too.
+- **On citizenship it loses, and does not improve with n**: 12.2-12.5 places
+  off from 25 items to 400, while random falls from 13.0 to 3.1. Item-rest
+  correlation does better (8.8 to 7.5). This is the scenario with the
+  answer-format artefact of `docs/validation.md` §2b — median accuracy 0.54 on a
+  two-way question, four models far below chance, three of them otherwise strong — so its full-slice
+  ranking is mostly noise plus that artefact, and the most informative items are
+  the ones that separate the models the scorer misreads.
+- **Removing citizenship does not fix the full suite.** `slice_no_citizenship`
+  (2,551 items, `helm95_no_citizenship.txt`) still has `select` losing: 54% of
+  draws beaten at n=25, 10% at n=50, 0% from n=100. So the artefact scenario is
+  not what costs selection on the whole suite either.
+- **But allocating across scenarios nearly rescues it there.** `per-scen`, which
+  splits n across scenarios in proportion to their size and picks the most
+  informative items within each, goes from 72%/49%/3% (full suite, n=25/50/100)
+  to 80%/92%/59% once citizenship is gone, while plain `select` stays behind
+  random. Choosing *within* a subject works — the single-subject runs say the
+  same — and choosing *across* subjects on one ability scale does not. That is
+  the several-abilities reading, now with the artefact scenario ruled out as the
+  cause.
+- **What is still unexplained** is why plain `select` loses so steadily on any
+  mixed-subject suite: its error is flat in n (10.9 to 7.7 places from 25 to 400
+  items) where random's falls from 11.0 to 3.0.
+
+One run per slice, holdout fits not bit-reproducible, and each slice's target is
+its own full-slice ranking, not the full suite's.
+
 ## Caveats
 
 - One real suite. HELM Lite mixes maths, law, general knowledge and reading;
@@ -49,3 +103,4 @@ held-out model scored on its own set — kept so the old numbers can be traced.
 
 - `run.py` — fits holdouts (cached per model), scores all selectors.
 - `helm12.txt`, `helm95.txt` — the output quoted in `docs/validation.md` §5.
+- `slices.py`, `helm95_*.txt` — the single-subject runs above.

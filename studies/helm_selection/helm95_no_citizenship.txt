@@ -1,0 +1,31 @@
+HELM Lite: 95 models x 2551 items, 24 held out, 200 random sets per (holdout, size).
+
+Places off: mean |place on the anchor set - place on the full suite| of the held-out
+model, every model scored on that set. Lower is better; 0 is exact, out of 95.
+'beats' is the share of random draws the selector placed held-out models better than.
+
+   n |  random |             tool |         per-scen |        item-rest
+  25 |   10.96 |  10.90 beats  54% |   9.29 beats  80% |  12.62 beats  20%
+  50 |    8.13 |  10.00 beats  10% |   6.08 beats  92% |  11.15 beats   4%
+ 100 |    5.97 |   9.92 beats   0% |   5.75 beats  59% |  11.48 beats   0%
+ 200 |    4.21 |   8.94 beats   0% |   5.40 beats   6% |   9.62 beats   0%
+ 400 |    2.96 |   7.69 beats   0% |   5.60 beats   0% |   8.92 beats   0%
+
+Spearman, held-out places against full-suite places (random: mean over draws)
+   n |  random |      tool |  per-scen | item-rest
+  25 |  +0.858 |    +0.880 |    +0.933 |    +0.738
+  50 |  +0.922 |    +0.907 |    +0.968 |    +0.873
+ 100 |  +0.959 |    +0.906 |    +0.986 |    +0.858
+ 200 |  +0.979 |    +0.909 |    +0.989 |    +0.897
+ 400 |  +0.990 |    +0.940 |    +0.989 |    +0.908
+
+The protocol validate used before this study: each held-out model on its own set,
+Spearman across the 24 holdouts. Kept for the record; it mixes set difficulty in.
+   n |  random |      tool |  per-scen | item-rest
+  25 |  +0.789 |    +0.867 |    +0.934 |    +0.775
+  50 |  +0.878 |    +0.907 |    +0.976 |    +0.880
+ 100 |  +0.932 |    +0.895 |    +0.986 |    +0.883
+ 200 |  +0.965 |    +0.914 |    +0.987 |    +0.914
+ 400 |  +0.983 |    +0.955 |    +0.987 |    +0.909
+
+tool anchor-set sizes, smallest per n: [25, 50, 100, 200, 400]
