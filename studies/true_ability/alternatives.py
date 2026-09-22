@@ -8,6 +8,10 @@ it with the same --models/--variants/--items/--seed/--holdouts and --cache.
   filter+random  drop what the fit makes a definite claim about (dead, inverted,
                  ceiling, floor), draw n of the rest at random. Averaged over
                  --repeats draws per holdout.
+  usable+random  select's own pool and padding rule, drawn at random instead of
+                 by information: n at random from usable_items() (which also drops
+                 insufficient-data), topped up at random from padding_items() when
+                 short. Isolates the pool from the choice. Averaged like filter+random.
   expected info  information averaged over the interval on a, a ~ N(a_hat, se):
                  E[a^2 P(1-P)] by Gauss-Hermite. The fix §5 names. Note it adds
                  se^2 to a^2 and so favours *uncertain* items.
@@ -97,6 +101,20 @@ def filter_random(fit: IrtFit, n: int) -> list[str]:
     return list(draw_rng.choice(pool, size=min(n, len(pool)), replace=False))
 
 
+usable_rng = np.random.default_rng(2)
+pool_sizes: list[int] = []
+
+
+def usable_random(fit: IrtFit, n: int) -> list[str]:
+    usable = fit.usable_items()
+    pool_sizes.append(len(usable))
+    first = list(usable_rng.choice(usable, size=min(n, len(usable)), replace=False))
+    if len(first) < n:
+        pad = padding_items(fit, exclude=first)
+        first += list(usable_rng.choice(pad, size=min(n - len(first), len(pad)), replace=False))
+    return [fit.item_ids[i] for i in first]
+
+
 GH_X, GH_W = np.polynomial.hermite_e.hermegauss(9)  # probabilists' Hermite: N(0, 1)
 GH_W = GH_W / GH_W.sum()
 
@@ -141,13 +159,18 @@ def run(select_fn, seed: int = 0) -> V.ValidationReport:
 reports = {
     "select": [run(select_item_ids)],
     "filter+random": [run(filter_random, seed=r) for r in range(args.repeats)],
+    "usable+random": [run(usable_random, seed=r) for r in range(args.repeats)],
     "expected info": [run(scored_select(expected_info))],
     "lower bound": [run(scored_select(lower_bound_info))],
 }
 
 print(
     f"{args.models} models x {args.variants} variants, {args.items} items, seed {args.seed}, "
-    f"{len(held)} held out; filter+random averaged over {args.repeats} draws"
+    f"{len(held)} held out; filter+random and usable+random averaged over {args.repeats} draws"
+)
+print(
+    f"usable pool per holdout fit: {min(pool_sizes)}-{max(pool_sizes)} of {args.items} items "
+    "(usable+random pads at random beyond it)"
 )
 print("\nPlaces off vs true theta, scored by accuracy; 'beats' = share of 200 random draws beaten")
 names = list(reports)

@@ -1,0 +1,9 @@
+50 models x 1 variants, 800 items, seed 0, 25 held out. Sets chosen from the original responses; every model scored on either the original responses or a fresh draw from the same true parameters.
+
+Places off vs true theta, scored by accuracy; 'beats' = share of 200 random draws beaten
+    n |        select / original |           select / fresh | usable+random / original |    usable+random / fresh | random orig / fresh
+   25 |              3.96    98% |              3.24   100% |              4.89    82% |              5.13    80% |    6.02 /   6.27
+   50 |              3.32    94% |              2.86   100% |              3.58    80% |              3.83    81% |    4.49 /   4.76
+  100 |              2.36    95% |              2.34    98% |              2.48    87% |              2.83    83% |    3.27 /   3.52
+  200 |              2.08    75% |              2.10    94% |              1.74    89% |              2.02    88% |    2.28 /   2.59
+  400 |              1.78    32% |              1.42    98% |              1.30    90% |              1.63    89% |    1.67 /   2.01

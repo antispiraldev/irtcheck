@@ -50,6 +50,49 @@ Share of random draws beaten (`alternatives*.txt`, one suite per column):
   selection below fifty models. One seed per column, so the small differences
   are not established.
 
+### Random from select's own pool, and scoring on fresh responses
+
+`alternatives.py` also scores `usable+random`: `select`'s pool and padding
+rule, drawn at random instead of by information. At 10 models it is *worse*
+than a plain random set (3% of draws beaten at n=100) although its items carry
+about 56% more true information per item than the suite's. At 25 models it beats
+`select` at every size (81% of draws at n=25, falling to 30% at n=400); at 50
+and 100 models it beats plain random in 62-90% of draws, behind `select` up to
+n=100 and ahead of it at n=400.
+
+That pointed at the loop rather than the estimates. A held-out fit chooses items
+from every other model's responses, and `validate` scores those same models on
+those same responses. An item looks informative when the others' answers to it
+happen to line up with their order, so on chosen items the reference models are
+spread out by their own noise, and the held-out model, whose answers played no
+part in the choice, is pulled toward the middle. `fresh.py` removes only that:
+it chooses from the original responses and scores every model on a fresh draw
+from the same true parameters.
+
+Share of random draws beaten, same responses -> fresh responses (`fresh*.txt`):
+
+| n   | 10 models  | 25 models   | 50 models  | 100 models  |
+| --- | ---------- | ----------- | ---------- | ----------- |
+| 25  | 3% -> 94%  | 38% -> 100% | 98% -> 100% | 100% -> 100% |
+| 50  | 0% -> 100% | 15% -> 92%  | 94% -> 100% | 100% -> 100% |
+| 100 | 0% -> 32%  | 46% -> 100% | 95% -> 98%  | 92% -> 100%  |
+| 200 | 0% -> 64%  | 31% -> 100% | 75% -> 94%  | 86% -> 100%  |
+| 400 | 22% -> 80% | 16% -> 96%  | 32% -> 98%  | 58% -> 91%   |
+
+**Most of the loss below fifty models is this, not estimation noise.** Scored
+on fresh responses, `select` beats random at 25 models at every size and at 10
+models up to n=50. The effect shrinks with more models (at 100 it moves
+n=100-400 by 8-33 points and leaves n=25-50 at 100%), so on its own it does not
+explain HELM at 95 models.
+
+It is not only an artefact of the protocol. A user who places a new model by
+its accuracy on the anchor set, against the reference models' accuracy on the
+same set from the responses it was chosen from, gets the same pull toward the
+middle — and with deterministic decoding there is no fresh draw to take. Not yet
+tested: placing the new model by ability estimated from its anchor responses
+against the reference models' *full-suite* ability, which never re-scores the
+reference models on the chosen items. One suite and one fresh draw per column.
+
 `diagnose.py` also reports what the chosen sets contain — true and fitted `a`,
 the spread of true difficulty, how many models answer every item right or
 every item wrong, and true test information — and, with `--holdouts`, runs the
@@ -74,7 +117,8 @@ model-count sweep.
         --cache ~/.cache/irtcheck-ability/synth50 > studies/true_ability/diagnose50.txt
     # and --models 100 with --cache ~/.cache/irtcheck-ability/synth100 into diagnose100.txt
 
-    # the two untried fixes: same arguments and --cache as diagnose.py, into alternatives*.txt
+    # the untried fixes, and choosing vs scoring on fresh responses: same arguments and
+    # --cache as diagnose.py, into alternatives*.txt and fresh*.txt (fresh.py needs no --workers)
     PYTHONPATH=src .venv/bin/python studies/true_ability/alternatives.py \
         --models 10 --variants 2 --items 600 --seed 5 \
         --cache ~/.cache/irtcheck-ability/synth10x2 > studies/true_ability/alternatives10x2.txt
