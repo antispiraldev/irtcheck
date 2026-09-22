@@ -3,7 +3,8 @@
 **Not shipped.** A one-time study on synthetic data, excluded from the sdist
 like the rest of `studies/`. The write-up is
 [`docs/validation.md` §5](../../docs/validation.md#5-choosing-items-against-sampling-them),
-under *On synthetic data: it is the estimates, and more models fix them*.
+under *On synthetic data: removing the candidates one at a time* and the two
+subsections after it.
 
 `irtcheck validate` on the README's synthetic matrix had random sets beating
 `select`'s at every size, on data drawn from a one-dimensional 2PL. Synthetic
